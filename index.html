@@ -1,0 +1,330 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Image Map 生成與展示工具</title>
+    <style>
+        body { font-family: sans-serif; background: #f4f6f8; padding: 20px; display: flex; flex-direction: column; align-items: center; }
+        .toolbar { background: white; padding: 15px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        button { padding: 8px 16px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; font-weight: bold; }
+        button:hover { background: #f0f0f0; }
+        button.active { background: #007bff; color: white; border-color: #007bff; }
+        button.primary { background: #28a745; color: white; border-color: #28a745; }
+        button.danger { color: #d9534f; border-color: #d9534f; }
+        #canvas-container { position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.2); border: 2px solid #ccc; background-color: #eee; min-width: 300px; min-height: 200px; cursor: crosshair; }
+        .row { display: flex; gap: 20px; width: 100%; max-width: 1200px; justify-content: center; align-items: flex-start; }
+        .col { display: flex; flex-direction: column; align-items: center; }
+        textarea { width: 100%; height: 100px; margin-top: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Image Map 生成器 (可匯出單檔)</h1>
+
+    <div class="toolbar">
+        <input type="file" id="imgInput" accept="image/*">
+        <div style="border-left: 1px solid #ccc; margin: 0 5px;"></div>
+        <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形 (Rect)</button>
+        <button id="btnPoly" onclick="setTool('poly')">畫多邊形 (Poly)</button>
+        <div style="border-left: 1px solid #ccc; margin: 0 5px;"></div>
+        <button onclick="undo()">上一步</button>
+        <button class="danger" onclick="clearAll()">清除全部</button>
+        <div style="border-left: 1px solid #ccc; margin: 0 5px;"></div>
+        <button class="primary" onclick="downloadStandalone()">下載展示用 HTML</button>
+    </div>
+
+    <div class="row">
+        <div class="col">
+            <div id="canvas-container">
+                <canvas id="editorCanvas"></canvas>
+            </div>
+            <p style="color:#666; font-size:0.9em;">提示：畫完後，點擊「下載展示用 HTML」即可獲得包含圖片的單一檔案。</p>
+        </div>
+    </div>
+    
+    <div style="width: 100%; max-width: 800px; margin-top: 20px;">
+        <details>
+            <summary>查看原始 HTML 代碼 (給開發者用)</summary>
+            <textarea id="outputCode" readonly></textarea>
+        </details>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('editorCanvas');
+        const ctx = canvas.getContext('2d');
+        const imgInput = document.getElementById('imgInput');
+        
+        let image = new Image();
+        let shapes = []; 
+        let currentShape = null; 
+        let isDrawing = false;
+        let tool = 'rect'; 
+        let originalImageDataUrl = ""; // 儲存原始圖片的 Base64
+
+        canvas.width = 600;
+        canvas.height = 400;
+        ctx.fillStyle = "#eee";
+        ctx.fillRect(0,0,600,400);
+        ctx.fillStyle = "#555";
+        ctx.font = "20px sans-serif";
+        ctx.fillText("請先上傳圖片", 240, 200);
+
+        imgInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                originalImageDataUrl = event.target.result; // 存下來給匯出用
+                image.onload = () => {
+                    canvas.width = image.width;
+                    canvas.height = image.height;
+                    shapes = [];
+                    currentShape = null;
+                    redraw();
+                };
+                image.src = event.target.result;
+            };
+            reader.readAsDataURL(file);
+        });
+
+        function setTool(t) {
+            tool = t;
+            document.getElementById('btnRect').classList.toggle('active', t === 'rect');
+            document.getElementById('btnPoly').classList.toggle('active', t === 'poly');
+            currentShape = null;
+            redraw();
+        }
+
+        canvas.addEventListener('mousedown', (e) => {
+            if (!image.src) return;
+            const pos = getPos(e);
+            if (tool === 'rect') {
+                isDrawing = true;
+                currentShape = { type: 'rect', start: pos, end: pos };
+            } else if (tool === 'poly') {
+                if (!currentShape) currentShape = { type: 'poly', points: [pos] };
+                else currentShape.points.push(pos);
+            }
+            redraw();
+        });
+
+        canvas.addEventListener('mousemove', (e) => {
+            if (!image.src) return;
+            const pos = getPos(e);
+            if (tool === 'rect' && isDrawing) {
+                currentShape.end = pos;
+                redraw();
+            } else if (tool === 'poly' && currentShape) {
+                redraw();
+                ctx.beginPath();
+                const last = currentShape.points[currentShape.points.length - 1];
+                ctx.moveTo(last.x, last.y);
+                ctx.lineTo(pos.x, pos.y);
+                ctx.strokeStyle = '#ff0000';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+            }
+        });
+
+        canvas.addEventListener('mouseup', (e) => {
+            if (tool === 'rect' && isDrawing) {
+                isDrawing = false;
+                if(Math.abs(currentShape.start.x - currentShape.end.x) > 5) shapes.push(currentShape);
+                currentShape = null;
+                redraw();
+                updateCode();
+            }
+        });
+
+        canvas.addEventListener('dblclick', (e) => {
+            if (tool === 'poly' && currentShape && currentShape.points.length > 2) {
+                shapes.push(currentShape);
+                currentShape = null;
+                redraw();
+                updateCode();
+            }
+        });
+
+        function getPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return {
+                x: Math.round((e.clientX - rect.left) * scaleX),
+                y: Math.round((e.clientY - rect.top) * scaleY)
+            };
+        }
+
+        function redraw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (image.src) ctx.drawImage(image, 0, 0);
+            
+            // 繪製半透明遮罩
+            ctx.fillStyle = "rgba(0,0,0,0.1)"; 
+            
+            shapes.forEach(shape => drawShape(shape, '#007bff'));
+            if (currentShape && tool === 'rect') drawShape(currentShape, '#ff0000');
+            
+            if (currentShape && tool === 'poly') {
+                ctx.beginPath();
+                ctx.moveTo(currentShape.points[0].x, currentShape.points[0].y);
+                for (let i = 1; i < currentShape.points.length; i++) ctx.lineTo(currentShape.points[i].x, currentShape.points[i].y);
+                ctx.strokeStyle = '#ff0000'; ctx.lineWidth = 2; ctx.stroke();
+                currentShape.points.forEach(p => {
+                    ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(p.x, p.y, 3, 0, Math.PI*2); ctx.fill();
+                });
+            }
+        }
+
+        function drawShape(shape, color) {
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            ctx.fillStyle = color === '#007bff' ? "rgba(0, 123, 255, 0.3)" : "rgba(255, 0, 0, 0.3)";
+
+            if (shape.type === 'rect') {
+                const w = shape.end.x - shape.start.x;
+                const h = shape.end.y - shape.start.y;
+                ctx.strokeRect(shape.start.x, shape.start.y, w, h);
+                ctx.fillRect(shape.start.x, shape.start.y, w, h);
+            } else if (shape.type === 'poly') {
+                ctx.beginPath();
+                ctx.moveTo(shape.points[0].x, shape.points[0].y);
+                for (let i = 1; i < shape.points.length; i++) ctx.lineTo(shape.points[i].x, shape.points[i].y);
+                ctx.closePath();
+                ctx.stroke();
+                ctx.fill();
+            }
+        }
+
+        function undo() { shapes.pop(); redraw(); updateCode(); }
+        function clearAll() { if(confirm('清除所有？')) { shapes = []; currentShape = null; redraw(); updateCode(); } }
+
+        function updateCode() {
+            // 只更新 textarea，不做主要邏輯
+            document.getElementById('outputCode').value = generateMapHTML();
+        }
+
+        function generateMapHTML() {
+            let areas = '';
+            shapes.forEach((shape, i) => {
+                let coords = '';
+                if (shape.type === 'rect') {
+                    const x1 = Math.min(shape.start.x, shape.end.x), y1 = Math.min(shape.start.y, shape.end.y);
+                    const x2 = Math.max(shape.start.x, shape.end.x), y2 = Math.max(shape.start.y, shape.end.y);
+                    coords = `${x1},${y1},${x2},${y2}`;
+                    areas += `    <area shape="rect" coords="${coords}" href="#" alt="區域 ${i+1}" title="區域 ${i+1}">\n`;
+                } else {
+                    coords = shape.points.map(p => `${p.x},${p.y}`).join(',');
+                    areas += `    <area shape="poly" coords="${coords}" href="#" alt="區域 ${i+1}" title="區域 ${i+1}">\n`;
+                }
+            });
+            return `<map name="generated-map">\n${areas}</map>`;
+        }
+
+        // --- 核心功能：下載包含圖片與互動效果的單一 HTML ---
+        function downloadStandalone() {
+            if(!originalImageDataUrl || shapes.length === 0) {
+                alert("請先上傳圖片並繪製至少一個區域！");
+                return;
+            }
+
+            const mapHTML = generateMapHTML();
+            // 這裡我們生成 SVG 覆蓋層，讓使用者看得到區域 (講解用)
+            let svgContent = '';
+            shapes.forEach((shape, i) => {
+                if(shape.type === 'rect') {
+                    const x = Math.min(shape.start.x, shape.end.x);
+                    const y = Math.min(shape.start.y, shape.end.y);
+                    const w = Math.abs(shape.end.x - shape.start.x);
+                    const h = Math.abs(shape.end.y - shape.start.y);
+                    svgContent += `<rect x="${x}" y="${y}" width="${w}" height="${h}" class="highlight-area" data-title="區域 ${i+1}"></rect>`;
+                } else {
+                    const points = shape.points.map(p => `${p.x},${p.y}`).join(' ');
+                    svgContent += `<polygon points="${points}" class="highlight-area" data-title="區域 ${i+1}"></polygon>`;
+                }
+            });
+
+            const fileContent = `
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Image Map 展示</title>
+    <style>
+        body { background: #333; display: flex; justify-content: center; padding: 20px; font-family: sans-serif; }
+        .container { position: relative; display: inline-block; box-shadow: 0 5px 15px rgba(0,0,0,0.5); background: white; }
+        img { display: block; max-width: 100%; height: auto; }
+        
+        /* 這是疊在圖片上的 SVG 層，負責顯示框線 */
+        .overlay-svg {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+        }
+        
+        /* 預設區域是透明的 */
+        .highlight-area {
+            fill: rgba(255, 255, 255, 0); 
+            stroke: rgba(255, 0, 0, 0.5); /* 淡淡的紅框提示這裡有東西 */
+            stroke-width: 2;
+            cursor: pointer;
+            pointer-events: auto; /* 讓 SVG 接收滑鼠事件 */
+            transition: all 0.2s;
+        }
+
+        /* 滑鼠移過去變成高亮 */
+        .highlight-area:hover {
+            fill: rgba(255, 255, 0, 0.3); /* 黃色半透明填充 */
+            stroke: red;
+            stroke-width: 3;
+        }
+
+        /* 簡單的 Tooltip */
+        .tooltip {
+            position: absolute; background: rgba(0,0,0,0.8); color: white; padding: 5px 10px; 
+            border-radius: 4px; font-size: 14px; pointer-events: none; display: none; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <img src="${originalImageDataUrl}">
+        
+        <svg class="overlay-svg" viewBox="0 0 ${canvas.width} ${canvas.height}">
+            ${svgContent}
+        </svg>
+
+        <div id="tooltip" class="tooltip"></div>
+    </div>
+
+    <script>
+        const tooltip = document.getElementById('tooltip');
+        const areas = document.querySelectorAll('.highlight-area');
+        
+        areas.forEach(area => {
+            area.addEventListener('mousemove', (e) => {
+                tooltip.style.display = 'block';
+                tooltip.textContent = area.getAttribute('data-title');
+                tooltip.style.left = (e.pageX + 10) + 'px';
+                tooltip.style.top = (e.pageY + 10) + 'px';
+            });
+            area.addEventListener('mouseout', () => {
+                tooltip.style.display = 'none';
+            });
+            area.addEventListener('click', () => {
+                alert('你點擊了: ' + area.getAttribute('data-title'));
+                // 在這裡可以改成跳轉連結，例如 window.location.href = '...';
+            });
+        });
+    <\/script>
+</body>
+</html>`;
+
+            const blob = new Blob([fileContent], { type: "text/html" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "demo-map.html"; // 下載的檔名
+            link.click();
+        }
+    </script>
+</body>
+</html>
