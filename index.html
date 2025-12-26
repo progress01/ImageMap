@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 簡報生成器 V5 (可縮放版)</title>
+    <title>Image Map 生成器 V6 (圖文儀表板版)</title>
     <style>
         /* --- 編輯器介面樣式 --- */
         body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
@@ -70,8 +70,8 @@
 </head>
 <body>
 
-    <h1>Image Map 簡報生成器 V5</h1>
-    <div class="subtitle">可縮放地圖・自動換行・螢光筆強調</div>
+    <h1>Image Map 生成器 V6</h1>
+    <div class="subtitle">圖文並茂儀表板・雙向連動導覽</div>
 
     <div class="toolbar">
         <input type="file" id="imgInput" accept="image/*">
@@ -82,7 +82,7 @@
         <button onclick="undo()">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
-        <button class="primary" onclick="downloadPresentation()">📥 下載展示檔</button>
+        <button class="primary" onclick="downloadPresentation()">📥 下載儀表板 HTML</button>
     </div>
 
     <div id="canvas-wrapper">
@@ -93,17 +93,17 @@
         <div class="editor-card">
             <h3>📝 編輯區域資訊</h3>
             <div>
-                <label>標題 (滑鼠移上去顯示)</label>
-                <input type="text" id="inputTitle" placeholder="例如：原始碼按鈕">
+                <label>標題 (將顯示在側邊列表)</label>
+                <input type="text" id="inputTitle" placeholder="例如：消防栓">
             </div>
             <div>
-                <label>詳細內容 (點擊後彈出說明)</label>
+                <label>詳細內容 (顯示在側邊說明欄)</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
-                        <button class="tool-btn" onclick="addHighlight()" title="將選取的文字加上黃色背景">🖍️ 重點螢光筆</button>
-                        <span class="tips">💡 按 Enter 可直接換行</span>
+                        <button class="tool-btn" onclick="addHighlight()" title="螢光筆">🖍️ 重點螢光筆</button>
+                        <span class="tips">Enter 可換行</span>
                     </div>
-                    <textarea id="inputDesc" placeholder="請輸入詳細說明...&#10;選取文字後，點擊上方的螢光筆按鈕來畫重點。"></textarea>
+                    <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
@@ -209,7 +209,7 @@
         function saveShape() {
             if(!tempShape) return;
             let rawDesc = inputDesc.value;
-            let formattedDesc = rawDesc.replace(/\n/g, '<br>'); // 自動換行
+            let formattedDesc = rawDesc.replace(/\n/g, '<br>'); 
             tempShape.title = inputTitle.value || "未命名";
             tempShape.desc = formattedDesc;
             shapes.push(tempShape);
@@ -223,7 +223,7 @@
             const start = textarea.selectionStart;
             const end = textarea.selectionEnd;
             const text = textarea.value;
-            if (start === end) { alert("請先選取要畫重點的文字！"); return; }
+            if (start === end) { alert("請先選取文字！"); return; }
             const selected = text.substring(start, end);
             const before = text.substring(0, start);
             const after = text.substring(end);
@@ -256,7 +256,6 @@
                 ctx.moveTo(s.points[0].x, s.points[0].y);
                 for(let p of s.points) ctx.lineTo(p.x, p.y); ctx.closePath();
             }
-
             if(isConfirmed) {
                 ctx.fillStyle = "rgba(255, 255, 255, 0.05)"; ctx.fill();
                 ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
@@ -274,21 +273,33 @@
         function undo() { shapes.pop(); redraw(); }
         function clearAll() { if(confirm("確定清空？")) { shapes = []; redraw(); } }
 
-        // --- V5 重點修改：下載功能增加縮放控制 ---
+        // --- V6 核心：生成儀表板 HTML ---
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
 
             let svgContent = '';
-            shapes.forEach((s) => {
+            let listItems = '';
+
+            shapes.forEach((s, index) => {
                 const safeDesc = s.desc.replace(/"/g, '&quot;');
+                const id = `region-${index}`;
+                
+                // SVG Part
                 if(s.type === 'rect') {
                     const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
                     const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
-                    svgContent += `<rect x="${x}" y="${y}" width="${w}" height="${h}" class="interactive-area" data-title="${s.title}" data-desc="${safeDesc}"></rect>`;
+                    svgContent += `<rect id="svg-${id}" x="${x}" y="${y}" width="${w}" height="${h}" class="interactive-area" data-id="${id}" data-title="${s.title}" data-desc="${safeDesc}"></rect>`;
                 } else {
                     const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
-                    svgContent += `<polygon points="${points}" class="interactive-area" data-title="${s.title}" data-desc="${safeDesc}"></polygon>`;
+                    svgContent += `<polygon id="svg-${id}" points="${points}" class="interactive-area" data-id="${id}" data-title="${s.title}" data-desc="${safeDesc}"></polygon>`;
                 }
+
+                // Sidebar List Part
+                listItems += `
+                <div class="list-item" id="list-${id}" onclick="activateRegion('${id}')">
+                    <div class="item-title">${s.title}</div>
+                    <div class="item-desc">${s.desc}</div>
+                </div>`;
             });
 
             const htmlContent = `
@@ -296,178 +307,147 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
-    <title>互動展示簡報 V5</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>訓練資訊儀表板</title>
     <style>
-        body { margin:0; background: #222; font-family: "Microsoft JhengHei", sans-serif; overflow: auto; }
+        body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
         
-        /* 縮放控制列 */
-        .zoom-controls {
-            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.8); padding: 8px 15px; border-radius: 30px;
-            display: flex; gap: 10px; z-index: 500; box-shadow: 0 5px 15px rgba(0,0,0,0.5);
-        }
-        .zoom-btn {
-            background: #444; color: white; border: 1px solid #666; padding: 5px 12px;
-            border-radius: 15px; cursor: pointer; font-size: 14px; transition: 0.2s;
-        }
-        .zoom-btn:hover { background: #666; }
-        .zoom-btn.active { background: #007bff; border-color: #007bff; }
-
-        /* 畫布容器 */
-        .stage-container {
-            display: flex; justify-content: center; align-items: center;
-            min-height: 100vh; padding: 20px; box-sizing: border-box;
-        }
-
-        /* 實際內容區 */
-        .stage { 
-            position: relative; 
-            transform-origin: center top; 
-            transition: width 0.3s ease, transform 0.3s ease;
-            box-shadow: 0 0 50px rgba(0,0,0,0.5);
-            /* 預設寬度 */
-            width: 90vw; 
-        }
+        /* 布局：左圖右文 */
+        .layout-container { display: flex; width: 100%; height: 100%; }
         
-        img { display: block; width: 100%; height: auto; }
+        /* 左側：地圖區 */
+        .map-section { flex: 3; position: relative; background: #222; overflow: hidden; display: flex; justify-content: center; align-items: center; border-right: 1px solid #333; }
+        .stage { position: relative; transform-origin: center center; transition: transform 0.3s ease; box-shadow: 0 0 50px rgba(0,0,0,0.5); }
+        img { display: block; max-width: 100%; height: auto; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
+
+        /* 右側：側邊欄 */
+        .sidebar { flex: 1; min-width: 320px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; overflow: hidden; }
+        .sidebar-header { padding: 20px; background: #333; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; color: #28a745; display: flex; align-items: center; gap: 10px; }
+        .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; scroll-behavior: smooth; }
         
-        .interactive-area {
-            fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.4); stroke-width: 1;
-            transition: all 0.2s; cursor: pointer;
+        /* 列表項目 */
+        .list-item { 
+            background: #383838; margin-bottom: 15px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; overflow: hidden; 
         }
-        .interactive-area:hover {
-            fill: rgba(255, 255, 255, 0.2); stroke: #00ffbf; stroke-width: 3;
-            filter: drop-shadow(0 0 5px #00ffbf);
+        .list-item:hover { background: #444; }
+        .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
+        
+        .item-title { padding: 15px; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; }
+        .item-title::after { content: '+'; color: #888; }
+        .list-item.active .item-title::after { content: '−'; color: #fff; }
+        
+        .item-desc { 
+            padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05);
         }
+        .list-item.active .item-desc { padding: 15px; max-height: 500px; opacity: 1; }
+
+        /* 互動區域樣式 */
+        .interactive-area { fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.3); stroke-width: 1; transition: all 0.2s; cursor: pointer; }
+        .interactive-area:hover { stroke: #28a745; stroke-width: 2; fill: rgba(40,167,69,0.1); }
+        .interactive-area.active { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.25); animation: pulse 2s infinite; }
+        
+        @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
+
         .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
-        .tooltip {
-            position: absolute; background: rgba(0,0,0,0.8); color: #fff; padding: 6px 12px;
-            border-radius: 4px; pointer-events: none; opacity: 0; transition: 0.2s; z-index: 10; font-size: 14px; white-space: nowrap;
+
+        /* 縮放控制列 */
+        .zoom-controls { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 10px; z-index: 10; }
+        .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 8px 15px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+        .zoom-btn:hover { background: #28a745; border-color: #28a745; }
+
+        /* Mobile RWD */
+        @media (max-width: 768px) {
+            .layout-container { flex-direction: column; }
+            .map-section { flex: 1; min-height: 50vh; }
+            .sidebar { flex: 1; min-width: 100%; box-shadow: 0 -5px 15px rgba(0,0,0,0.3); }
         }
-        
-        /* Modal */
-        .modal-backdrop {
-            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.75); backdrop-filter: blur(5px);
-            display: flex; justify-content: center; align-items: center;
-            opacity: 0; pointer-events: none; transition: 0.3s; z-index: 1000;
-        }
-        .modal-backdrop.show { opacity: 1; pointer-events: auto; }
-        .modal-card {
-            background: #fff; width: 500px; max-width: 90%; border-radius: 12px; overflow: hidden;
-            box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: translateY(30px); transition: 0.3s;
-        }
-        .modal-backdrop.show .modal-card { transform: translateY(0); }
-        .modal-header { background: #28a745; color: #fff; padding: 15px 25px; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
-        .modal-body { padding: 30px 25px; line-height: 1.8; color: #333; font-size: 1.1em; max-height: 60vh; overflow-y: auto; }
-        .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
     </style>
 </head>
 <body>
-    
-    <div class="zoom-controls">
-        <button class="zoom-btn active" onclick="setZoom('fit')">適應螢幕</button>
-        <button class="zoom-btn" onclick="setZoom(100)">100% 原圖</button>
-        <button class="zoom-btn" onclick="zoomIn()">+</button>
-        <button class="zoom-btn" onclick="zoomOut()">-</button>
-    </div>
-
-    <div class="stage-container">
-        <div class="stage" id="stage">
-            <img src="${originalImageDataUrl}">
-            <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">
-                ${svgContent}
-            </svg>
-            <div id="tooltip" class="tooltip"></div>
-        </div>
-    </div>
-
-    <div class="modal-backdrop" id="backdrop" onclick="closeModal(event)">
-        <div class="modal-card">
-            <div class="modal-header">
-                <span id="mTitle"></span>
-                <button class="close-btn" onclick="closeModalDirect()">&times;</button>
+    <div class="layout-container">
+        <div class="map-section">
+            <div class="stage" id="stage">
+                <img src="${originalImageDataUrl}">
+                <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">
+                    ${svgContent}
+                </svg>
             </div>
-            <div class="modal-body" id="mDesc"></div>
+            <div class="zoom-controls">
+                <button class="zoom-btn" onclick="zoomIn()">+</button>
+                <button class="zoom-btn" onclick="zoomOut()">-</button>
+                <button class="zoom-btn" onclick="resetZoom()">Reset</button>
+            </div>
+        </div>
+
+        <div class="sidebar">
+            <div class="sidebar-header">
+                📝 區域說明列表
+            </div>
+            <div class="sidebar-content" id="sidebarList">
+                ${listItems}
+            </div>
         </div>
     </div>
 
     <script>
         const stage = document.getElementById('stage');
-        let currentZoom = 90; // vh/vw unit-like
-        let isFitMode = true;
-
-        function setZoom(mode) {
-            const btns = document.querySelectorAll('.zoom-btn');
-            btns.forEach(b => b.classList.remove('active'));
-
-            if(mode === 'fit') {
-                isFitMode = true;
-                stage.style.width = '90vw';
-                stage.style.transform = 'none';
-                btns[0].classList.add('active');
-            } else if (mode === 100) {
-                isFitMode = false;
-                stage.style.width = '${image.width}px'; // 恢復原圖寬度
-                stage.style.transform = 'none';
-                btns[1].classList.add('active');
-            }
-        }
-
-        function zoomIn() {
-            if(isFitMode) {
-                // 從 fit mode 轉為手動像素寬度
-                isFitMode = false;
-                stage.style.width = stage.offsetWidth * 1.2 + 'px';
-            } else {
-                stage.style.width = stage.offsetWidth * 1.2 + 'px';
-            }
-            updateBtns();
-        }
-
-        function zoomOut() {
-            if(isFitMode) {
-                isFitMode = false;
-                stage.style.width = stage.offsetWidth * 0.8 + 'px';
-            } else {
-                stage.style.width = stage.offsetWidth * 0.8 + 'px';
-            }
-            updateBtns();
-        }
+        let scale = 0.9;
         
-        function updateBtns() {
-            document.querySelectorAll('.zoom-btn').forEach(b => b.classList.remove('active'));
+        // 初始化縮放 (簡單版)
+        function updateTransform() {
+            stage.style.transform = \`scale(\${scale})\`;
+        }
+        function zoomIn() { scale += 0.1; updateTransform(); }
+        function zoomOut() { if(scale > 0.2) scale -= 0.1; updateTransform(); }
+        function resetZoom() { scale = 0.9; updateTransform(); }
+        updateTransform();
+
+        // 核心互動邏輯
+        let currentActiveId = null;
+
+        function activateRegion(id) {
+            // 1. 清除舊的 Active
+            if(currentActiveId) {
+                document.getElementById('svg-' + currentActiveId)?.classList.remove('active');
+                document.getElementById('list-' + currentActiveId)?.classList.remove('active');
+            }
+            
+            // 2. 如果點擊同一個，則關閉 (Toggle)
+            if(currentActiveId === id) {
+                currentActiveId = null;
+                return;
+            }
+
+            // 3. 激活新的
+            currentActiveId = id;
+            document.getElementById('svg-' + id)?.classList.add('active');
+            
+            const listItem = document.getElementById('list-' + id);
+            if(listItem) {
+                listItem.classList.add('active');
+                // 自動捲動到該項目
+                listItem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            }
         }
 
-        const tooltip = document.getElementById('tooltip');
-        const backdrop = document.getElementById('backdrop');
-        const mTitle = document.getElementById('mTitle');
-        const mDesc = document.getElementById('mDesc');
-
+        // 綁定 SVG 點擊事件
         document.querySelectorAll('.interactive-area').forEach(area => {
-            area.addEventListener('mousemove', (e) => {
-                tooltip.style.opacity = 1;
-                tooltip.textContent = area.getAttribute('data-title');
-                // 修正 tooltip 座標，考慮 scroll
-                const rect = stage.getBoundingClientRect();
-                // 這裡我們直接用 pageX/Y 比較簡單
-                tooltip.style.left = (e.pageX + 15) + 'px';
-                tooltip.style.top = (e.pageY + 15) + 'px';
-            });
-            area.addEventListener('mouseout', () => { tooltip.style.opacity = 0; });
             area.addEventListener('click', (e) => {
                 e.stopPropagation();
-                mTitle.textContent = area.getAttribute('data-title');
-                mDesc.innerHTML = area.getAttribute('data-desc'); 
-                backdrop.classList.add('show');
+                activateRegion(area.getAttribute('data-id'));
             });
         });
 
-        function closeModal(e) { if(e.target === backdrop) backdrop.classList.remove('show'); }
-        function closeModalDirect() { backdrop.classList.remove('show'); }
-        document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeModalDirect(); });
+        // 點擊空白處取消選取
+        document.querySelector('.map-section').addEventListener('click', () => {
+             if(currentActiveId) {
+                document.getElementById('svg-' + currentActiveId)?.classList.remove('active');
+                document.getElementById('list-' + currentActiveId)?.classList.remove('active');
+                currentActiveId = null;
+            }
+        });
+
     <\/script>
 </body>
 </html>`;
@@ -475,7 +455,7 @@
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "presentation_v5_zoomable.html";
+            link.download = "dashboard_v6.html";
             link.click();
         }
     </script>
