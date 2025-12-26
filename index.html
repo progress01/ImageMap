@@ -3,45 +3,119 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 簡報生成器 (V3)</title>
+    <title>Image Map 簡報生成器 V4 (最終版)</title>
     <style>
-        /* 介面樣式 */
-        body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 20px; }
-        h1 { color: #333; margin-bottom: 10px; }
-        .toolbar { background: white; padding: 15px 25px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 25px; display: flex; gap: 15px; align-items: center; }
-        button { padding: 8px 20px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+        /* --- 編輯器介面樣式 --- */
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        h1 { color: #333; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+
+        .toolbar { 
+            background: white; padding: 10px 20px; border-radius: 8px; 
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1); margin-bottom: 20px; 
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center;
+        }
+        
+        button { padding: 8px 16px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; font-weight: bold; transition: 0.2s; }
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
-        button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.4); }
-        button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 2px 5px rgba(40,167,69,0.4); }
+        button.active { background: #007bff; color: white; border-color: #007bff; }
+        button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
         button.danger { color: #dc3545; border-color: #dc3545; }
-        button.danger:hover { background: #dc3545; color: white; }
-        
-        /* 畫布區 */
-        #canvas-wrapper { position: relative; box-shadow: 0 10px 25px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; overflow: hidden; background: #ddd; }
+
+        #canvas-wrapper { 
+            position: relative; box-shadow: 0 5px 20px rgba(0,0,0,0.15); 
+            border: 5px solid white; border-radius: 4px; overflow: hidden; background: #ccc; 
+            /* 預設大小，載入圖片後會變 */
+            min-width: 600px; min-height: 400px;
+        }
         canvas { display: block; cursor: crosshair; }
+
+        /* --- 彈出式編輯面板 (畫完後出現) --- */
+        .editor-modal {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6); backdrop-filter: blur(3px);
+            display: flex; justify-content: center; align-items: center;
+            z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s;
+        }
+        .editor-modal.show { visibility: visible; opacity: 1; }
         
-        .instructions { color: #666; margin-bottom: 10px; font-size: 0.9em; }
+        .editor-card {
+            background: white; width: 500px; padding: 25px; border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            display: flex; flex-direction: column; gap: 15px;
+        }
+        .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; }
+        
+        label { font-weight: bold; font-size: 0.9em; color: #555; }
+        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 4px; width: 100%; box-sizing: border-box; }
+        
+        /* 內容編輯區 */
+        .textarea-container { position: relative; }
+        textarea { 
+            width: 100%; height: 150px; padding: 10px; padding-top: 40px; 
+            border: 1px solid #ddd; border-radius: 4px; resize: vertical; 
+            font-family: inherit; line-height: 1.5; box-sizing: border-box;
+        }
+        
+        .textarea-toolbar {
+            position: absolute; top: 1px; left: 1px; right: 1px; 
+            background: #f9f9f9; border-bottom: 1px solid #ddd; 
+            padding: 5px; border-radius: 4px 4px 0 0; display: flex; gap: 5px;
+        }
+        .tool-btn {
+            font-size: 0.8em; padding: 3px 8px; background: #fff; border: 1px solid #ccc; border-radius: 3px;
+        }
+        .tool-btn:hover { background: #e2e6ea; }
+
+        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; }
     </style>
 </head>
 <body>
 
-    <h1>Image Map 簡報製作工具</h1>
-    <p class="instructions">上傳圖片 -> 框選區域 -> 輸入「標題」與「詳細解說」 -> 下載展示檔</p>
+    <h1>Image Map 簡報生成器 V4</h1>
+    <div class="subtitle">自動換行・螢光筆強調・互動式彈窗</div>
 
     <div class="toolbar">
         <input type="file" id="imgInput" accept="image/*">
-        <div style="width:1px; height:20px; background:#ddd;"></div>
-        <button id="btnRect" class="active" onclick="setTool('rect')">矩形</button>
-        <button id="btnPoly" onclick="setTool('poly')">多邊形 (點兩下結束)</button>
-        <div style="width:1px; height:20px; background:#ddd;"></div>
-        <button onclick="undo()">復原</button>
-        <button class="danger" onclick="clearAll()">清空</button>
-        <div style="width:1px; height:20px; background:#ddd;"></div>
-        <button class="primary" onclick="downloadPresentation()">下載簡報展示檔 (HTML)</button>
+        <div style="border-left:1px solid #ccc; height:20px;"></div>
+        <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
+        <button id="btnPoly" onclick="setTool('poly')">畫多邊形 (點兩下結束)</button>
+        <div style="border-left:1px solid #ccc; height:20px;"></div>
+        <button onclick="undo()">復原上一步</button>
+        <button class="danger" onclick="clearAll()">全部清除</button>
+        <div style="border-left:1px solid #ccc; height:20px;"></div>
+        <button class="primary" onclick="downloadPresentation()">📥 下載展示檔</button>
     </div>
 
     <div id="canvas-wrapper">
         <canvas id="editorCanvas"></canvas>
+    </div>
+
+    <div class="editor-modal" id="editorModal">
+        <div class="editor-card">
+            <h3>編輯區域資訊</h3>
+            
+            <div>
+                <label>標題 (滑鼠移上去顯示)</label>
+                <input type="text" id="inputTitle" placeholder="例如：緊急出口">
+            </div>
+
+            <div>
+                <label>詳細內容 (點擊後顯示)</label>
+                <div class="textarea-container">
+                    <div class="textarea-toolbar">
+                        <button class="tool-btn" onclick="addHighlight()" title="將選取的文字加上黃色背景">🖍️ 重點螢光筆</button>
+                        <span style="font-size:0.8em; color:#888; margin-top:5px; margin-left:5px;">(按 Enter 可直接換行)</span>
+                    </div>
+                    <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
+                </div>
+            </div>
+
+            <div class="modal-footer">
+                <button onclick="cancelShape()">取消</button>
+                <button class="primary" onclick="saveShape()">確定儲存</button>
+            </div>
+        </div>
     </div>
 
     <script>
@@ -49,17 +123,24 @@
         const ctx = canvas.getContext('2d');
         const imgInput = document.getElementById('imgInput');
         
+        // Modal 元素
+        const modal = document.getElementById('editorModal');
+        const inputTitle = document.getElementById('inputTitle');
+        const inputDesc = document.getElementById('inputDesc');
+
         let image = new Image();
         let shapes = []; 
         let currentShape = null; 
+        let tempShape = null; // 暫存剛畫好的形狀，等待編輯
         let isDrawing = false;
         let tool = 'rect'; 
         let originalImageDataUrl = "";
 
-        // 初始化畫布
+        // 初始化
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#888"; ctx.font = "24px sans-serif"; ctx.fillText("請上傳一張圖片開始製作", 260, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; 
+        ctx.fillText("請先上傳圖片", 340, 250);
 
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0];
@@ -83,7 +164,7 @@
             currentShape = null; redraw();
         }
 
-        // --- 滑鼠事件邏輯 ---
+        // --- 繪圖邏輯 ---
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
             const scaleX = canvas.width / rect.width;
@@ -120,45 +201,80 @@
         canvas.addEventListener('mouseup', (e) => {
             if (tool === 'rect' && isDrawing) {
                 isDrawing = false;
-                if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) addShapePrompt(currentShape);
+                if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape);
                 currentShape = null; redraw();
             }
         });
 
         canvas.addEventListener('dblclick', (e) => {
             if (tool === 'poly' && currentShape && currentShape.points.length > 2) {
-                addShapePrompt(currentShape);
+                openEditor(currentShape);
                 currentShape = null; redraw();
             }
         });
 
-        // --- 核心：輸入資料 ---
-        function addShapePrompt(shape) {
-            setTimeout(() => {
-                const title = prompt("【標題】請輸入這個區域的名稱：", "區域 " + (shapes.length + 1));
-                if(title === null) return; // 取消
-                
-                // 這裡改為輸入「詳細內容」
-                const desc = prompt("【內容】請輸入點擊後要顯示的詳細解說：\n(支援 HTML 標籤，如 <br> 換行)", "這裡是關於 " + title + " 的詳細說明...");
-                
-                shape.title = title || "未命名區域";
-                shape.desc = desc || "無詳細說明";
-                shapes.push(shape);
-                redraw();
-            }, 10);
+        // --- 編輯面板邏輯 ---
+        function openEditor(shapeData) {
+            tempShape = shapeData;
+            inputTitle.value = "區域 " + (shapes.length + 1);
+            inputDesc.value = ""; // 清空
+            modal.classList.add('show');
+            inputTitle.focus();
         }
 
+        function cancelShape() {
+            tempShape = null;
+            modal.classList.remove('show');
+            redraw();
+        }
+
+        function saveShape() {
+            if(!tempShape) return;
+            
+            // 處理換行：將 \n 換成 <br>
+            let rawDesc = inputDesc.value;
+            // 處理標籤安全性 (簡單防護) 並轉換換行
+            // 但保留我們的 <span class="highlight">
+            // 這裡為了簡單，我們直接信任輸入，僅做換行轉換
+            let formattedDesc = rawDesc.replace(/\n/g, '<br>');
+            
+            tempShape.title = inputTitle.value || "未命名";
+            tempShape.desc = formattedDesc;
+            
+            shapes.push(tempShape);
+            tempShape = null;
+            modal.classList.remove('show');
+            redraw();
+        }
+        
+        // 螢光筆功能
+        function addHighlight() {
+            const start = inputDesc.selectionStart;
+            const end = inputDesc.selectionEnd;
+            const text = inputDesc.value;
+            
+            if (start === end) return; // 沒選字
+
+            const selected = text.substring(start, end);
+            const before = text.substring(0, start);
+            const after = text.substring(end);
+            
+            // 插入 HTML 標籤
+            const newText = before + `<span class="highlight-text">${selected}</span>` + after;
+            
+            inputDesc.value = newText;
+            inputDesc.focus();
+        }
+
+        // --- 繪製畫布 ---
         function redraw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (image.src) ctx.drawImage(image, 0, 0);
-            
-            // 遮罩
-            ctx.fillStyle = "rgba(0,0,0,0.2)"; ctx.fillRect(0,0,canvas.width,canvas.height);
+            ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
 
-            shapes.forEach((s, i) => drawShape(s, true));
+            shapes.forEach(s => drawShape(s, true));
             if (currentShape && tool === 'rect') drawShape(currentShape, false);
             if (currentShape && tool === 'poly') {
-                // 繪製多邊形過程
                 ctx.beginPath();
                 ctx.moveTo(currentShape.points[0].x, currentShape.points[0].y);
                 for(let p of currentShape.points) ctx.lineTo(p.x, p.y);
@@ -179,18 +295,18 @@
             }
 
             if(isConfirmed) {
-                ctx.fillStyle = "rgba(255, 255, 255, 0.1)"; // 挖洞效果
+                ctx.fillStyle = "rgba(255, 255, 255, 0.05)"; // 幾乎透明
                 ctx.fill();
                 ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; ctx.stroke();
                 
-                // 畫標題標籤
+                // 畫標題
                 let center = s.type === 'rect' ? {x:s.start.x, y:s.start.y} : s.points[0];
                 ctx.font = "14px sans-serif";
                 const textMetrics = ctx.measureText(s.title);
-                ctx.fillStyle = "#007bff";
-                ctx.fillRect(center.x, center.y - 20, textMetrics.width + 10, 20);
+                ctx.fillStyle = "#28a745";
+                ctx.fillRect(center.x, center.y - 24, textMetrics.width + 12, 24);
                 ctx.fillStyle = "white";
-                ctx.fillText(s.title, center.x + 5, center.y - 5);
+                ctx.fillText(s.title, center.x + 6, center.y - 7);
             } else {
                 ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 2; ctx.stroke();
             }
@@ -199,29 +315,33 @@
         function undo() { shapes.pop(); redraw(); }
         function clearAll() { if(confirm("確定清空？")) { shapes = []; redraw(); } }
 
-        // --- 核心：下載簡報展示檔 ---
+        // --- 下載產生器 ---
         function downloadPresentation() {
-            if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪圖！"); return; }
+            if(!originalImageDataUrl || shapes.length === 0) { 
+                alert("請先上傳圖片並至少繪製一個區域！"); 
+                return; 
+            }
 
-            // 產生 SVG 互動層
+            // 產生 SVG
             let svgContent = '';
-            shapes.forEach((s, i) => {
-                let attrs = '';
+            shapes.forEach((s) => {
+                // 為了避免 HTML 屬性問題，我們將內容進行編碼
+                // 但為了簡單，這裡用 replace 處理單引號和雙引號
+                const safeDesc = s.desc.replace(/"/g, '&quot;');
+                
                 if(s.type === 'rect') {
                     const w = Math.abs(s.end.x - s.start.x);
                     const h = Math.abs(s.end.y - s.start.y);
                     const x = Math.min(s.start.x, s.end.x);
                     const y = Math.min(s.start.y, s.end.y);
-                    attrs = `x="${x}" y="${y}" width="${w}" height="${h}"`;
-                    // SVG rect
-                    svgContent += `<rect ${attrs} class="interactive-area" data-title="${s.title}" data-desc="${s.desc.replace(/"/g, '&quot;')}"></rect>`;
+                    svgContent += `<rect x="${x}" y="${y}" width="${w}" height="${h}" class="interactive-area" data-title="${s.title}" data-desc="${safeDesc}"></rect>`;
                 } else {
                     const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
-                    // SVG polygon
-                    svgContent += `<polygon points="${points}" class="interactive-area" data-title="${s.title}" data-desc="${s.desc.replace(/"/g, '&quot;')}"></polygon>`;
+                    svgContent += `<polygon points="${points}" class="interactive-area" data-title="${s.title}" data-desc="${safeDesc}"></polygon>`;
                 }
             });
 
+            // 產生最終 HTML
             const htmlContent = `
 <!DOCTYPE html>
 <html lang="zh-TW">
@@ -229,71 +349,51 @@
     <meta charset="UTF-8">
     <title>互動展示簡報</title>
     <style>
-        body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
-        
+        body { margin:0; background: #222; font-family: "Microsoft JhengHei", sans-serif; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
         .stage { position: relative; box-shadow: 0 0 50px rgba(0,0,0,0.5); max-width: 95vw; max-height: 95vh; }
-        img { display: block; max-width: 100%; max-height: 95vh; user-select: none; }
-        
+        img { display: block; max-width: 100%; max-height: 95vh; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
         
-        /* 互動區域樣式 */
         .interactive-area {
-            fill: rgba(255,255,255,0);
-            stroke: rgba(255,255,255,0.3);
-            stroke-width: 1;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            cursor: pointer;
+            fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.4); stroke-width: 1;
+            transition: all 0.2s; cursor: pointer;
         }
-        
-        /* Hover 特效：呼吸燈與發光 */
         .interactive-area:hover {
-            fill: rgba(255, 255, 255, 0.15);
-            stroke: #00d2ff;
-            stroke-width: 2;
-            filter: drop-shadow(0 0 8px rgba(0, 210, 255, 0.6));
-            animation: pulse 2s infinite;
-        }
-        
-        @keyframes pulse {
-            0% { fill-opacity: 0.1; }
-            50% { fill-opacity: 0.3; }
-            100% { fill-opacity: 0.1; }
+            fill: rgba(255, 255, 255, 0.2); stroke: #00ffbf; stroke-width: 3;
         }
 
-        /* 彈出視窗 (Modal) */
+        /* 螢光筆樣式 */
+        .highlight-text {
+            background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: absolute; background: rgba(0,0,0,0.8); color: #fff; padding: 5px 10px;
+            border-radius: 4px; pointer-events: none; opacity: 0; transition: 0.2s; z-index: 10; font-size: 14px;
+        }
+
+        /* Modal */
         .modal-backdrop {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.6);
-            backdrop-filter: blur(5px);
+            background: rgba(0,0,0,0.7); backdrop-filter: blur(5px);
             display: flex; justify-content: center; align-items: center;
-            opacity: 0; pointer-events: none; transition: opacity 0.3s;
-            z-index: 1000;
+            opacity: 0; pointer-events: none; transition: 0.3s; z-index: 100;
         }
         .modal-backdrop.show { opacity: 1; pointer-events: auto; }
         
         .modal-card {
-            background: white; width: 400px; max-width: 90%;
-            border-radius: 12px; overflow: hidden;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
-            transform: translateY(20px); transition: transform 0.3s;
+            background: #fff; width: 500px; max-width: 90%; border-radius: 10px; overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5); transform: translateY(30px); transition: 0.3s;
         }
         .modal-backdrop.show .modal-card { transform: translateY(0); }
         
-        .modal-header { background: #007bff; color: white; padding: 15px 20px; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center;}
-        .modal-body { padding: 25px 20px; line-height: 1.6; color: #333; font-size: 1em; max-height: 60vh; overflow-y: auto; }
-        .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; line-height: 1; }
-        
-        /* 浮動標籤 (Tooltip) */
-        .tooltip {
-            position: absolute; background: rgba(0,0,0,0.85); color: white; padding: 6px 12px;
-            border-radius: 4px; font-size: 14px; pointer-events: none; 
-            transform: translate(-50%, -100%); margin-top: -10px;
-            opacity: 0; transition: opacity 0.2s; white-space: nowrap; z-index: 10;
-        }
+        .modal-header { background: #28a745; color: #fff; padding: 15px 20px; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; }
+        .modal-body { padding: 30px 25px; line-height: 1.8; color: #333; font-size: 1.1em; max-height: 60vh; overflow-y: auto; }
+        .close-btn { background: none; border: none; color: white; font-size: 24px; cursor: pointer; }
     </style>
 </head>
 <body>
-
     <div class="stage">
         <img src="${originalImageDataUrl}">
         <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">
@@ -302,59 +402,41 @@
         <div id="tooltip" class="tooltip"></div>
     </div>
 
-    <div class="modal-backdrop" id="modalBackdrop" onclick="closeModal(event)">
+    <div class="modal-backdrop" id="backdrop" onclick="closeModal(event)">
         <div class="modal-card">
             <div class="modal-header">
-                <span id="modalTitle">標題</span>
+                <span id="mTitle"></span>
                 <button class="close-btn" onclick="closeModalDirect()">&times;</button>
             </div>
-            <div class="modal-body" id="modalDesc">
-                內容...
-            </div>
+            <div class="modal-body" id="mDesc"></div>
         </div>
     </div>
 
     <script>
-        const backdrop = document.getElementById('modalBackdrop');
-        const modalTitle = document.getElementById('modalTitle');
-        const modalDesc = document.getElementById('modalDesc');
         const tooltip = document.getElementById('tooltip');
-        
-        // 綁定所有區域事件
+        const backdrop = document.getElementById('backdrop');
+        const mTitle = document.getElementById('mTitle');
+        const mDesc = document.getElementById('mDesc');
+
         document.querySelectorAll('.interactive-area').forEach(area => {
-            // Hover 顯示 Tooltip
             area.addEventListener('mousemove', (e) => {
                 tooltip.style.opacity = 1;
                 tooltip.textContent = area.getAttribute('data-title');
-                tooltip.style.left = e.pageX + 'px';
-                tooltip.style.top = e.pageY + 'px';
+                tooltip.style.left = (e.pageX + 15) + 'px';
+                tooltip.style.top = (e.pageY + 15) + 'px';
             });
             area.addEventListener('mouseout', () => { tooltip.style.opacity = 0; });
-            
-            // Click 顯示 Modal
             area.addEventListener('click', (e) => {
-                e.stopPropagation(); // 防止點擊穿透
-                const title = area.getAttribute('data-title');
-                const desc = area.getAttribute('data-desc');
-                
-                modalTitle.textContent = title;
-                modalDesc.innerHTML = desc; // 支援 HTML
+                e.stopPropagation();
+                mTitle.textContent = area.getAttribute('data-title');
+                mDesc.innerHTML = area.getAttribute('data-desc'); // 這裡會解析 HTML (包含 <br> 和 <span>)
                 backdrop.classList.add('show');
             });
         });
 
-        // 關閉 Modal 邏輯
-        function closeModal(e) {
-            if(e.target === backdrop) backdrop.classList.remove('show');
-        }
-        function closeModalDirect() {
-            backdrop.classList.remove('show');
-        }
-        
-        // 按 ESC 關閉
-        document.addEventListener('keydown', (e) => {
-            if(e.key === 'Escape') closeModalDirect();
-        });
+        function closeModal(e) { if(e.target === backdrop) backdrop.classList.remove('show'); }
+        function closeModalDirect() { backdrop.classList.remove('show'); }
+        document.addEventListener('keydown', (e) => { if(e.key === 'Escape') closeModalDirect(); });
     <\/script>
 </body>
 </html>`;
@@ -362,7 +444,7 @@
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "presentation_slide.html";
+            link.download = "presentation_v4.html";
             link.click();
         }
     </script>
