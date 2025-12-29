@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V8 (可還原編輯版)</title>
+    <title>Image Map 生成器 V9 (筆記增強版)</title>
     <style>
         /* --- 編輯器介面樣式 --- */
         body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
@@ -21,6 +21,7 @@
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
         button.danger { color: #dc3545; border-color: #dc3545; }
         button.info { color: #17a2b8; border-color: #17a2b8; }
+        button.note { color: #6610f2; border-color: #6610f2; } /* 紫色筆記按鈕 */
 
         #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; overflow: hidden; background: #ddd; min-width: 600px; min-height: 400px; }
         canvas { display: block; cursor: crosshair; }
@@ -34,8 +35,11 @@
         .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; }
         .editor-modal.show .editor-card { transform: scale(1); }
         .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
+        
+        .form-group { margin-bottom: 10px; }
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
+        
         .textarea-container { position: relative; }
         textarea { width: 100%; height: 160px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
         textarea:focus { outline: 2px solid #007bff; border-color: transparent; }
@@ -44,12 +48,15 @@
         .tool-btn:hover { background: #e2e6ea; border-color: #adb5bd; }
         .tips { font-size: 0.8em; color: #888; margin-left: auto; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid #eee; padding-top: 15px;}
+        
+        /* 隱藏元素用 */
+        .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <h1>Image Map 生成器 V8</h1>
-    <div class="subtitle">長截圖自動導航・可自定義檔名・可還原修改</div>
+    <h1>Image Map 生成器 V9</h1>
+    <div class="subtitle">自動導航・專案筆記・全顯開關・專案還原</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -63,9 +70,10 @@
     </div>
 
     <div class="toolbar">
-        <span style="font-size:0.9em; color:#666;">步驟 2: 繪製</span>
+        <span style="font-size:0.9em; color:#666;">步驟 2: 編輯</span>
         <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
         <button id="btnPoly" onclick="setTool('poly')">畫多邊形 (點兩下結束)</button>
+        <button class="note" onclick="editGlobalNote()">📝 編輯專案筆記</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         <button onclick="undo()">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
@@ -82,13 +90,15 @@
 
     <div class="editor-modal" id="editorModal">
         <div class="editor-card">
-            <h3>📝 編輯區域資訊</h3>
-            <div>
+            <h3 id="modalTitle">📝 編輯區域資訊</h3>
+            
+            <div id="titleGroup" class="form-group">
                 <label>標題 (將顯示在側邊列表)</label>
                 <input type="text" id="inputTitle" placeholder="例如：原始碼按鈕">
             </div>
-            <div>
-                <label>詳細內容 (顯示在側邊說明欄)</label>
+            
+            <div class="form-group">
+                <label id="descLabel">詳細內容</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
                         <button class="tool-btn" onclick="addHighlight()" title="螢光筆">🖍️ 重點螢光筆</button>
@@ -97,9 +107,10 @@
                     <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
                 </div>
             </div>
+            
             <div class="modal-footer">
-                <button onclick="cancelShape()">取消</button>
-                <button class="primary" onclick="saveShape()">確定儲存</button>
+                <button onclick="cancelModal()">取消</button>
+                <button class="primary" onclick="saveModal()">確定儲存</button>
             </div>
         </div>
     </div>
@@ -117,24 +128,28 @@
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
         let isDrawing = false; let tool = 'rect'; let originalImageDataUrl = "";
+        
+        // V9 新增：全域筆記變數
+        let globalNote = ""; 
+        let isEditingNote = false; // 判斷現在是在編輯筆記還是編輯圖形
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
         ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 或 匯入舊檔", 300, 250);
 
-        // --- 1. 圖片上傳邏輯 ---
+        // --- 圖片與匯入 ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
                 loadImage(event.target.result);
-                shapes = []; // 新圖片清空舊資料
-                fileNameInput.value = file.name.split('.')[0]; // 自動帶入檔名
+                shapes = []; 
+                globalNote = ""; // 重置筆記
+                fileNameInput.value = file.name.split('.')[0];
             };
             reader.readAsDataURL(file);
         });
 
-        // --- 2. 舊檔匯入邏輯 (新增功能) ---
         importInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
@@ -142,25 +157,25 @@
                 const htmlContent = event.target.result;
                 const parser = new DOMParser();
                 const doc = parser.parseFromString(htmlContent, 'text/html');
-                
-                // 尋找隱藏的還原數據
                 const restoreScript = doc.getElementById('restore-data');
+                
                 if (restoreScript) {
                     try {
                         const data = JSON.parse(restoreScript.textContent);
                         shapes = data.shapes;
-                        loadImage(data.imgData); // 重新載入圖片
-                        fileNameInput.value = file.name.split('.')[0]; // 帶入舊檔名
-                        alert("專案已成功還原！您可以繼續編輯。");
+                        globalNote = data.globalNote || ""; // 還原筆記，相容舊版
+                        loadImage(data.imgData);
+                        fileNameInput.value = file.name.split('.')[0];
+                        alert("專案已成功還原！(含筆記資料)");
                     } catch (err) {
                         alert("還原失敗：數據格式錯誤。");
                     }
                 } else {
-                    alert("無法還原：此檔案可能不是由此版本產生，或已損壞。");
+                    alert("無法還原：此檔案可能不是由此版本產生。");
                 }
             };
             reader.readAsText(file);
-            importInput.value = ''; // 重置 input 讓同個檔案可以再選
+            importInput.value = '';
         });
 
         function loadImage(src) {
@@ -172,7 +187,7 @@
             image.src = src;
         }
 
-        // --- 繪圖工具邏輯 (保持不變) ---
+        // --- 繪圖工具 ---
         function setTool(t) {
             tool = t;
             document.getElementById('btnRect').classList.toggle('active', t === 'rect');
@@ -221,24 +236,62 @@
             }
         });
 
+        // --- 編輯視窗邏輯 (整合了形狀編輯與筆記編輯) ---
+        
         function openEditor(shapeData) {
+            isEditingNote = false;
             tempShape = shapeData;
+            
+            // UI 調整
+            document.getElementById('modalTitle').innerText = "📝 編輯區域資訊";
+            document.getElementById('titleGroup').classList.remove('hidden');
+            document.getElementById('descLabel').innerText = "詳細內容";
+            
             inputTitle.value = "區域 " + (shapes.length + 1);
             inputDesc.value = ""; 
+            
             modal.classList.add('show');
             inputTitle.focus();
         }
 
-        function cancelShape() { tempShape = null; modal.classList.remove('show'); redraw(); }
+        function editGlobalNote() {
+            isEditingNote = true;
+            
+            // UI 調整
+            document.getElementById('modalTitle').innerText = "📋 編輯專案筆記 (前言/總結)";
+            document.getElementById('titleGroup').classList.add('hidden'); // 隱藏標題欄
+            document.getElementById('descLabel').innerText = "筆記內容 (支援換行)";
+            
+            // 將 <br> 換回 \n 以便編輯
+            inputDesc.value = globalNote.replace(/<br>/g, '\n');
+            
+            modal.classList.add('show');
+            inputDesc.focus();
+        }
 
-        function saveShape() {
-            if(!tempShape) return;
+        function cancelModal() { 
+            tempShape = null; 
+            modal.classList.remove('show'); 
+            redraw(); 
+        }
+
+        function saveModal() {
             let rawDesc = inputDesc.value;
-            let formattedDesc = rawDesc.replace(/\n/g, '<br>'); 
-            tempShape.title = inputTitle.value || "未命名";
-            tempShape.desc = formattedDesc;
-            shapes.push(tempShape);
-            tempShape = null;
+            let formattedDesc = rawDesc.replace(/\n/g, '<br>'); // 統一轉為 <br>
+            
+            if (isEditingNote) {
+                // 儲存全域筆記
+                globalNote = formattedDesc;
+                alert("筆記已暫存 (下載時才會寫入檔案)");
+            } else {
+                // 儲存形狀
+                if(!tempShape) return;
+                tempShape.title = inputTitle.value || "未命名";
+                tempShape.desc = formattedDesc;
+                shapes.push(tempShape);
+                tempShape = null;
+            }
+            
             modal.classList.remove('show');
             redraw();
         }
@@ -295,16 +348,21 @@
         }
 
         function undo() { shapes.pop(); redraw(); }
-        function clearAll() { if(confirm("確定清空？")) { shapes = []; redraw(); } }
+        function clearAll() { if(confirm("確定清空？")) { shapes = []; globalNote=""; redraw(); } }
 
+        // --- 下載生成 HTML ---
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
 
-            // 準備還原數據 (重要功能：儲存專案狀態)
+            // 準備還原數據 (加入 globalNote)
             const restoreData = {
                 imgData: originalImageDataUrl,
-                shapes: shapes
+                shapes: shapes,
+                globalNote: globalNote
             };
+            
+            // 如果 globalNote 是空的，給個預設字
+            const safeNote = globalNote ? globalNote : "（此專案尚無筆記）";
 
             let svgContent = '';
             let listItems = '';
@@ -313,7 +371,6 @@
                 const safeDesc = s.desc.replace(/"/g, '&quot;');
                 const id = `region-${index}`;
                 
-                // SVG Part
                 if(s.type === 'rect') {
                     const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
                     const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
@@ -323,7 +380,6 @@
                     svgContent += `<polygon id="svg-${id}" points="${points}" class="interactive-area" data-id="${id}" data-title="${s.title}" data-desc="${safeDesc}"></polygon>`;
                 }
 
-                // Sidebar List Part
                 listItems += `
                 <div class="list-item" id="list-${id}" onclick="activateRegion('${id}')">
                     <div class="item-title">${s.title}</div>
@@ -342,6 +398,7 @@
         body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
         .layout-container { display: flex; width: 100%; height: 100%; }
         
+        /* Map Section */
         .map-section { 
             flex: 3; position: relative; background: #222; 
             overflow: auto;
@@ -361,8 +418,15 @@
         img { display: block; width: 100%; height: auto; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
+        /* Sidebar */
         .sidebar { flex: 1; min-width: 300px; max-width: 400px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; overflow: hidden; z-index: 20;}
-        .sidebar-header { padding: 20px; background: #333; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; color: #28a745; }
+        
+        /* Header modified to include note button */
+        .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+        .header-title { font-size: 1.1em; font-weight: bold; color: #28a745; display: flex; align-items: center; gap: 8px;}
+        .note-btn { background: #6610f2; color: white; border: none; padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.85em; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .note-btn:hover { background: #520dc2; transform: translateY(-1px); }
+
         .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; scroll-behavior: smooth; }
         
         .list-item { background: #383838; margin-bottom: 15px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; overflow: hidden; }
@@ -376,14 +440,9 @@
 
         .interactive-area { fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.3); stroke-width: 2; transition: all 0.2s; cursor: pointer; }
         .interactive-area:hover { stroke: #28a745; stroke-width: 3; fill: rgba(40,167,69,0.1); }
-        
-        /* 點選激活狀態 */
         .interactive-area.active { stroke: #28a745; stroke-width: 5; fill: rgba(40,167,69,0.25); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
-
-        /* 全顯模式狀態 (新功能 CSS) */
         .interactive-area.show-all { stroke: #17a2b8 !important; stroke-width: 2 !important; stroke-opacity: 0.8 !important; fill: rgba(23, 162, 184, 0.1) !important; }
-        /* 避免與激活狀態衝突，激活狀態優先 */
         .interactive-area.active.show-all { stroke: #28a745 !important; stroke-width: 5 !important; fill: rgba(40,167,69,0.25) !important; }
 
         .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
@@ -392,6 +451,14 @@
         .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; }
         .zoom-btn:hover { background: #28a745; border-color: #28a745; }
         .zoom-btn.active { background: #17a2b8; border-color: #17a2b8; box-shadow: 0 0 10px rgba(23, 162, 184, 0.5); }
+
+        /* Note Modal */
+        .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+        .note-card { background: #2b2b2b; color: #eee; width: 90%; max-width: 600px; max-height: 80vh; border-radius: 12px; padding: 0; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid #444; }
+        .note-header { padding: 15px 20px; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; background: #333; border-radius: 12px 12px 0 0;}
+        .note-close { cursor: pointer; color: #aaa; font-size: 1.5em; line-height: 1; }
+        .note-close:hover { color: #fff; }
+        .note-body { padding: 25px; overflow-y: auto; line-height: 1.8; font-size: 1.05em; white-space: pre-wrap; } /* 保留換行格式 */
 
         @media (max-width: 768px) {
             .layout-container { flex-direction: column; }
@@ -422,11 +489,22 @@
 
         <div class="sidebar">
             <div class="sidebar-header">
-                📝 區域說明導覽
+                <div class="header-title">📝 區域說明導覽</div>
+                <button class="note-btn" onclick="toggleNote()">📋 閱讀筆記</button>
             </div>
             <div class="sidebar-content" id="sidebarList">
                 ${listItems}
             </div>
+        </div>
+    </div>
+
+    <div class="note-modal" id="noteModal" onclick="toggleNote()">
+        <div class="note-card" onclick="event.stopPropagation()">
+            <div class="note-header">
+                <span>📋 專案筆記 / 前情提要</span>
+                <span class="note-close" onclick="toggleNote()">&times;</span>
+            </div>
+            <div class="note-body">${safeNote}</div>
         </div>
     </div>
 
@@ -439,16 +517,10 @@
         const stage = document.getElementById('stage');
         let currentWidthPercent = 100;
 
-        function updateZoom() {
-            stage.style.width = currentWidthPercent + '%';
-        }
+        function updateZoom() { stage.style.width = currentWidthPercent + '%'; }
         function zoomIn() { currentWidthPercent += 20; updateZoom(); }
         function zoomOut() { if(currentWidthPercent > 40) currentWidthPercent -= 20; updateZoom(); }
-        function setZoom(mode) {
-            if(mode === 'fit') currentWidthPercent = 95; 
-            else currentWidthPercent = 100;
-            updateZoom();
-        }
+        function setZoom(mode) { if(mode === 'fit') currentWidthPercent = 95; else currentWidthPercent = 100; updateZoom(); }
 
         let currentActiveId = null;
 
@@ -457,31 +529,30 @@
                 document.getElementById('svg-' + currentActiveId)?.classList.remove('active');
                 document.getElementById('list-' + currentActiveId)?.classList.remove('active');
             }
-            
-            if(currentActiveId === id) {
-                currentActiveId = null;
-                return;
-            }
-
+            if(currentActiveId === id) { currentActiveId = null; return; }
             currentActiveId = id;
             const svgEl = document.getElementById('svg-' + id);
             const listEl = document.getElementById('list-' + id);
-            
             svgEl?.classList.add('active');
             listEl?.classList.add('active');
             listEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
             svgEl?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
 
-        // 新增功能：全顯開關
         function toggleAll(btn) {
             const allAreas = document.querySelectorAll('.interactive-area');
             const isActive = btn.classList.toggle('active');
-            
             allAreas.forEach(area => {
                 if(isActive) area.classList.add('show-all');
                 else area.classList.remove('show-all');
             });
+        }
+        
+        // Note Modal Logic
+        function toggleNote() {
+            const modal = document.getElementById('noteModal');
+            if(modal.style.display === 'flex') modal.style.display = 'none';
+            else modal.style.display = 'flex';
         }
 
         document.querySelectorAll('.interactive-area').forEach(area => {
@@ -500,7 +571,6 @@
                 }
             }
         });
-
     <\/script>
 </body>
 </html>`;
@@ -508,12 +578,9 @@
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            
-            // 使用自定義檔名或預設檔名
             let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "dashboard_v8";
+            if(!rawName) rawName = "dashboard_v9_note";
             link.download = rawName + ".html";
-            
             link.click();
         }
     </script>
