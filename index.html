@@ -3,20 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V11 (可收折清單版)</title>
+    <title>Image Map 生成器 V14 (V8風格+清單增強)</title>
     <style>
-        /* --- 基礎樣式 --- */
-        body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; height: 100vh; box-sizing: border-box; }
-        h1 { color: #333; margin-bottom: 5px; margin-top: 0; }
-        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 15px; }
+        /* --- V8 風格基礎樣式 --- */
+        body { 
+            font-family: "Microsoft JhengHei", -apple-system, sans-serif; 
+            background: #f4f6f8; 
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 20px; margin: 0; 
+            /* 移除 height: 100vh，讓頁面自然捲動 */
+        }
+        h1 { color: #333; margin-bottom: 5px; }
+        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
         
-        /* --- 控制列與工具列 --- */
-        .top-bar { display: flex; flex-direction: column; align-items: center; width: 100%; flex-shrink: 0; }
-        .main-controls { display: flex; gap: 15px; margin-bottom: 10px; }
-        .file-group, .toolbar { background: white; padding: 8px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
-        .toolbar { margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
+        /* --- 圓角控制列 --- */
+        .main-controls { display: flex; gap: 15px; margin-bottom: 15px; flex-wrap: wrap; justify-content: center; }
+        .file-group, .toolbar { 
+            background: white; padding: 10px 20px; border-radius: 50px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; 
+        }
+        .toolbar { margin-bottom: 20px; flex-wrap: wrap; justify-content: center; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
         
-        button { padding: 6px 15px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 5px; font-size: 0.9rem; }
+        button { 
+            padding: 8px 18px; border: 1px solid #ddd; background: #fff; border-radius: 20px; 
+            cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; 
+            display: flex; align-items: center; gap: 5px; 
+        }
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
         button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
@@ -24,166 +36,166 @@
         button.info { color: #17a2b8; border-color: #17a2b8; }
         button.note { color: #6610f2; border-color: #6610f2; }
         
-        /* 切換按鈕樣式 */
+        /* 側邊欄開關按鈕 (深色) */
         button.toggle-sidebar { background: #343a40; color: white; border-color: #343a40; }
         button.toggle-sidebar.off { background: #fff; color: #333; border-color: #ddd; }
 
-        input[type="text"].filename-input { padding: 6px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 160px; text-align: center; }
+        input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 編輯區佈局 (左右欄) --- */
-        .workspace { display: flex; width: 100%; max-width: 1200px; height: 100%; overflow: hidden; align-items: flex-start; position: relative; }
+        /* --- 主要工作區 (Flex 佈局) --- */
+        .workspace-container {
+            display: flex;
+            align-items: flex-start;
+            gap: 20px;
+            max-width: 100%;
+        }
 
-        /* 左側畫布區 */
+        /* --- 畫布容器 (V8 風格回歸) --- */
         #canvas-wrapper { 
             position: relative; 
             box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
             border: 4px solid white; 
             border-radius: 4px; 
-            overflow: auto; 
+            overflow: auto; /* 允許內部捲動 */
             background: #ddd; 
-            flex: 1; /* 自動填滿剩餘空間 */
-            max-height: 100%;
-            display: flex; justify-content: center; align-items: center;
-            transition: all 0.3s ease; /* 平滑過渡 */
+            /* 限制最大寬高，避免撐爆螢幕，但保留 V8 的框框感 */
+            max-width: 90vw; 
+            max-height: 80vh;
+            min-width: 600px; 
+            min-height: 400px;
         }
-        canvas { display: block; cursor: crosshair; }
+        
+        canvas { 
+            display: block; 
+            cursor: crosshair; 
+            transform-origin: top left; /* 縮放錨點 */
+        }
 
-        /* 右側圖層清單區 */
-        .sidebar-panel {
-            width: 280px;
+        /* --- 縮放工具列 (懸浮在畫布左下角) --- */
+        .zoom-toolbar {
+            position: absolute; bottom: 15px; left: 15px;
+            background: rgba(0,0,0,0.7); padding: 5px 10px; border-radius: 25px;
+            display: flex; gap: 8px; align-items: center;
+            color: white; font-size: 0.85rem; z-index: 10; pointer-events: auto;
+        }
+        .zoom-btn { 
+            background: transparent; border: 1px solid #999; color: white; 
+            padding: 2px 8px; border-radius: 10px; font-size: 12px; height: auto;
+        }
+        .zoom-btn:hover { background: #28a745; border-color: #28a745; }
+
+        /* --- 側邊清單面板 (獨立卡片) --- */
+        .sidebar-card {
+            width: 260px;
             background: white;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            overflow: hidden;
             display: flex;
             flex-direction: column;
-            height: 100%;
-            max-height: 600px; 
-            border: 1px solid #eee;
-            flex-shrink: 0;
-            margin-left: 20px; /* 使用 margin 取代 gap 以便於隱藏 */
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden; /* 隱藏內容 */
+            max-height: 80vh;
+            transition: all 0.3s ease;
             opacity: 1;
         }
-
-        /* 隱藏狀態 */
-        .sidebar-panel.collapsed {
-            width: 0;
-            margin-left: 0;
-            opacity: 0;
-            padding: 0;
-            border: none;
+        
+        .sidebar-card.hidden {
+            width: 0; padding: 0; opacity: 0; margin-left: -20px; pointer-events: none;
         }
 
         .panel-header {
-            padding: 15px;
-            border-bottom: 1px solid #eee;
-            background: #fcfcfc;
-            border-radius: 12px 12px 0 0;
+            padding: 15px; background: #333; color: white;
             display: flex; justify-content: space-between; align-items: center;
-            white-space: nowrap; /* 防止縮小時文字換行 */
         }
-        .panel-header h3 { margin: 0; font-size: 1rem; color: #444; }
+        .panel-header h3 { margin: 0; font-size: 1rem; color: #fff; }
         
-        .header-controls { display: flex; align-items: center; gap: 8px; }
-        .close-sidebar-btn { cursor: pointer; color: #999; font-size: 1.2em; line-height: 1; padding: 2px; }
-        .close-sidebar-btn:hover { color: #dc3545; }
-
-        .count-badge { background: #6c757d; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.8em; }
-
-        .layer-list { flex: 1; overflow-y: auto; padding: 10px; min-width: 260px; /* 防止內容擠壓 */ }
+        .layer-list { flex: 1; overflow-y: auto; padding: 10px; min-height: 200px; }
         
         .layer-item {
-            background: #fff; border: 1px solid #eee; border-radius: 8px; padding: 10px; margin-bottom: 8px;
-            cursor: pointer; transition: 0.2s; display: flex; flex-direction: column; gap: 5px; border-left: 3px solid transparent;
+            background: #f8f9fa; border: 1px solid #eee; border-radius: 6px; padding: 10px; margin-bottom: 8px;
+            cursor: pointer; transition: 0.2s; border-left: 4px solid transparent;
+            display: flex; flex-direction: column; gap: 5px;
         }
-        .layer-item:hover { background: #f8f9fa; border-color: #ddd; }
-        .layer-item.active { background: #fffbe6; border-color: #ffe58f; border-left-color: #faad14; box-shadow: 0 2px 8px rgba(250, 173, 20, 0.15); }
+        .layer-item:hover { background: #eee; }
+        .layer-item.active { 
+            background: #fffbe6; border-color: #ffe58f; border-left-color: #faad14; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
         
         .layer-top { display: flex; justify-content: space-between; align-items: center; }
-        .layer-title { font-weight: bold; font-size: 0.95em; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 150px;}
-        .layer-type { font-size: 0.75em; color: #999; background: #eee; padding: 2px 6px; border-radius: 4px; }
+        .layer-title { font-weight: bold; font-size: 0.95em; color: #333; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+        .layer-actions { display: flex; gap: 5px; justify-content: flex-end; margin-top: 5px; }
         
-        .layer-actions { display: flex; gap: 5px; justify-content: flex-end; margin-top: 5px; opacity: 0.4; transition: 0.2s; }
-        .layer-item:hover .layer-actions, .layer-item.active .layer-actions { opacity: 1; }
-        
-        .mini-btn { padding: 3px 8px; font-size: 0.8em; height: auto; border-radius: 4px; }
-        .mini-btn.edit { color: #007bff; border-color: #007bff; }
-        .mini-btn.del { color: #dc3545; border-color: #dc3545; }
-        .mini-btn:hover { background: currentColor; color: white; }
+        .mini-btn { padding: 2px 8px; font-size: 0.8em; height: auto; border-radius: 4px; border:1px solid #ccc; }
+        .mini-btn.del:hover { background: #dc3545; color: white; border-color: #dc3545; }
+        .mini-btn.edit:hover { background: #007bff; color: white; border-color: #007bff; }
 
         .empty-state { text-align: center; color: #999; padding: 30px 10px; font-size: 0.9em; }
 
-        /* --- 編輯面板 (Modal) --- */
+        /* --- 編輯 Modal (保留 V8 樣式) --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
         .editor-modal.show { visibility: visible; opacity: 1; }
-        .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; }
-        .editor-modal.show .editor-card { transform: scale(1); }
+        .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; }
         .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
         
-        .form-group { margin-bottom: 10px; }
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
-        
-        .textarea-container { position: relative; }
-        textarea { width: 100%; height: 160px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
-        .textarea-toolbar { position: absolute; top: 1px; left: 1px; right: 1px; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 6px; border-radius: 6px 6px 0 0; display: flex; gap: 8px; align-items: center; }
-        .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
-        .tips { font-size: 0.8em; color: #888; margin-left: auto; }
+        textarea { width: 100%; height: 160px; padding: 12px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; box-sizing: border-box; font-size: 1em; }
         .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid #eee; padding-top: 15px;}
         .hidden { display: none; }
     </style>
 </head>
 <body>
 
-    <div class="top-bar">
-        <h1>Image Map 生成器 V11</h1>
-        <div class="subtitle">自動導航・專案筆記・全顯開關・可折疊清單</div>
+    <h1>Image Map 生成器 V14</h1>
+    <div class="subtitle">V8 經典介面 + V13 縮放與清單功能</div>
 
-        <div class="main-controls">
-            <div class="file-group">
-                <span style="font-size:0.9em; color:#666;">步驟 1: 新增/還原</span>
-                <button onclick="document.getElementById('imgInput').click()">🖼️ 上傳圖片</button>
-                <input type="file" id="imgInput" accept="image/*" style="display:none">
-                <div style="border-left:1px solid #ddd; height:20px;"></div>
-                <button class="info" onclick="document.getElementById('importInput').click()">📂 匯入舊檔</button>
-                <input type="file" id="importInput" accept=".html" style="display:none">
-            </div>
-        </div>
-
-        <div class="toolbar">
-            <span style="font-size:0.9em; color:#666;">步驟 2: 編輯</span>
-            <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
-            <button id="btnPoly" onclick="setTool('poly')">畫多邊形</button>
-            <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
+    <div class="main-controls">
+        <div class="file-group">
+            <span style="font-size:0.9em; color:#666;">步驟 1: 檔案</span>
+            <button onclick="document.getElementById('imgInput').click()">🖼️ 上傳圖片</button>
+            <input type="file" id="imgInput" accept="image/*" style="display:none">
             <div style="border-left:1px solid #ddd; height:20px;"></div>
-            <button id="btnToggleSidebar" class="toggle-sidebar" onclick="toggleSidebar()">🗂️ 隱藏清單</button>
-            <div style="border-left:1px solid #ddd; height:20px;"></div>
-            <button class="danger" onclick="clearAll()">清除全部</button>
-            
-            <div style="border-left:1px solid #ddd; height:20px;"></div>
-            <span style="font-size:0.9em; color:#666;">步驟 3: 下載</span>
-            <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱">
-            <button class="primary" onclick="downloadPresentation()">📥 下載 HTML</button>
+            <button class="info" onclick="document.getElementById('importInput').click()">📂 匯入舊檔</button>
+            <input type="file" id="importInput" accept=".html" style="display:none">
         </div>
     </div>
 
-    <div class="workspace">
+    <div class="toolbar">
+        <span style="font-size:0.9em; color:#666;">步驟 2: 編輯</span>
+        <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
+        <button id="btnPoly" onclick="setTool('poly')">畫多邊形</button>
+        <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
+        <div style="border-left:1px solid #ddd; height:20px;"></div>
+        <button id="btnToggleSidebar" class="toggle-sidebar" onclick="toggleSidebar()">🗂️ 顯示/隱藏清單</button>
+        <button class="danger" onclick="clearAll()">清除</button>
+        <div style="border-left:1px solid #ddd; height:20px;"></div>
+        
+        <span style="font-size:0.9em; color:#666;">步驟 3: 下載</span>
+        <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱">
+        <button class="primary" onclick="downloadPresentation()">📥 下載 HTML</button>
+    </div>
+
+    <div class="workspace-container">
+        
         <div id="canvas-wrapper">
             <canvas id="editorCanvas"></canvas>
+            
+            <div class="zoom-toolbar">
+                <span id="zoomLabel" style="min-width:40px">100%</span>
+                <button class="zoom-btn" onclick="fitToScreen()">Fit</button>
+                <button class="zoom-btn" onclick="setZoom(1)">1:1</button>
+                <button class="zoom-btn" onclick="changeZoom(0.1)">+</button>
+                <button class="zoom-btn" onclick="changeZoom(-0.1)">-</button>
+            </div>
         </div>
 
-        <div class="sidebar-panel" id="sidebarPanel">
+        <div class="sidebar-card" id="sidebarCard">
             <div class="panel-header">
-                <h3>已建立項目</h3>
-                <div class="header-controls">
-                    <span class="count-badge" id="shapeCount">0</span>
-                    <span class="close-sidebar-btn" onclick="toggleSidebar()" title="收起清單">&times;</span>
-                </div>
+                <h3>已建立項目 (<span id="shapeCount">0</span>)</h3>
             </div>
             <div class="layer-list" id="layerList">
-                <div class="empty-state">尚無項目<br>請在圖片上繪製區域</div>
+                <div class="empty-state">尚無項目<br>請在圖片上繪製</div>
             </div>
         </div>
     </div>
@@ -191,23 +203,14 @@
     <div class="editor-modal" id="editorModal">
         <div class="editor-card">
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
-            
-            <div id="titleGroup" class="form-group">
-                <label>標題 (將顯示在側邊列表)</label>
-                <input type="text" id="inputTitle" placeholder="例如：原始碼按鈕">
+            <div id="titleGroup">
+                <label>標題</label>
+                <input type="text" id="inputTitle" placeholder="標題">
             </div>
-            
-            <div class="form-group">
-                <label id="descLabel">詳細內容</label>
-                <div class="textarea-container">
-                    <div class="textarea-toolbar">
-                        <button class="tool-btn" onclick="addHighlight()" title="螢光筆">🖍️ 重點螢光筆</button>
-                        <span class="tips">Enter 可換行</span>
-                    </div>
-                    <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
-                </div>
+            <div>
+                <label>詳細內容 (支援 HTML)</label>
+                <textarea id="inputDesc" placeholder="內容說明..."></textarea>
             </div>
-            
             <div class="modal-footer">
                 <button onclick="cancelModal()">取消</button>
                 <button class="primary" onclick="saveModal()">確定儲存</button>
@@ -218,6 +221,7 @@
     <script>
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
+        const canvasWrapper = document.getElementById('canvas-wrapper');
         const imgInput = document.getElementById('imgInput');
         const importInput = document.getElementById('importInput');
         const modal = document.getElementById('editorModal');
@@ -226,43 +230,37 @@
         const fileNameInput = document.getElementById('fileNameInput');
         const layerListEl = document.getElementById('layerList');
         const shapeCountEl = document.getElementById('shapeCount');
-        
-        // 新增：側邊欄相關 DOM
-        const sidebarPanel = document.getElementById('sidebarPanel');
+        const sidebarCard = document.getElementById('sidebarCard');
         const btnToggleSidebar = document.getElementById('btnToggleSidebar');
+        const zoomLabel = document.getElementById('zoomLabel');
 
         let image = new Image();
-        let shapes = []; 
-        let currentShape = null; 
-        let tempShape = null; 
-        
-        let isDrawing = false; 
-        let tool = 'rect'; 
-        let originalImageDataUrl = "";
-        let globalNote = ""; 
-        let isEditingNote = false;
-        
-        let focusedShapeIndex = -1;
-        let editingShapeIndex = -1;
+        let shapes = []; let currentShape = null; let tempShape = null;
+        let isDrawing = false; let tool = 'rect'; 
+        let originalImageDataUrl = ""; let globalNote = ""; let isEditingNote = false;
+        let focusedShapeIndex = -1; let editingShapeIndex = -1;
 
+        // V13 縮放核心
+        let currentScale = 1.0;
+
+        // 初始化
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 或 匯入舊檔", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V14)", 320, 250);
 
-        // --- 側邊欄開關功能 ---
+        // --- 側邊欄開關 ---
         function toggleSidebar() {
-            sidebarPanel.classList.toggle('collapsed');
-            
-            if (sidebarPanel.classList.contains('collapsed')) {
-                btnToggleSidebar.innerHTML = "🗂️ 顯示清單";
+            sidebarCard.classList.toggle('hidden');
+            if (sidebarCard.classList.contains('hidden')) {
                 btnToggleSidebar.classList.add('off');
+                btnToggleSidebar.innerText = "🗂️ 顯示清單";
             } else {
-                btnToggleSidebar.innerHTML = "🗂️ 隱藏清單";
                 btnToggleSidebar.classList.remove('off');
+                btnToggleSidebar.innerText = "🗂️ 隱藏清單";
             }
         }
 
-        // --- 圖片與匯入 ---
+        // --- 圖片處理 ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
@@ -270,7 +268,7 @@
                 loadImage(event.target.result);
                 shapes = []; globalNote = ""; 
                 fileNameInput.value = file.name.split('.')[0];
-                renderLayers(); 
+                renderLayers();
             };
             reader.readAsDataURL(file);
         });
@@ -279,22 +277,16 @@
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
-                const htmlContent = event.target.result;
-                const parser = new DOMParser();
-                const doc = parser.parseFromString(htmlContent, 'text/html');
-                const restoreScript = doc.getElementById('restore-data');
-                
-                if (restoreScript) {
-                    try {
-                        const data = JSON.parse(restoreScript.textContent);
-                        shapes = data.shapes;
-                        globalNote = data.globalNote || "";
-                        loadImage(data.imgData);
-                        fileNameInput.value = file.name.split('.')[0];
-                        renderLayers(); 
-                        alert("專案已成功還原！");
-                    } catch (err) { alert("還原失敗：數據格式錯誤。"); }
-                } else { alert("無法還原：此檔案可能不是由此版本產生。"); }
+                const doc = new DOMParser().parseFromString(event.target.result, 'text/html');
+                const script = doc.getElementById('restore-data');
+                if (script) {
+                    const data = JSON.parse(script.textContent);
+                    shapes = data.shapes; globalNote = data.globalNote || "";
+                    loadImage(data.imgData);
+                    fileNameInput.value = file.name.split('.')[0];
+                    renderLayers();
+                    alert("專案已還原！");
+                } else { alert("格式錯誤"); }
             };
             reader.readAsText(file);
             importInput.value = '';
@@ -304,12 +296,38 @@
             originalImageDataUrl = src;
             image.onload = () => {
                 canvas.width = image.width; canvas.height = image.height;
+                // 預設做一次 Fit，避免大圖直接撐爆
+                fitToScreen();
                 redraw();
             };
             image.src = src;
         }
 
-        // --- 繪圖工具 ---
+        // --- 縮放邏輯 (V13) ---
+        function setZoom(scale) {
+            currentScale = scale;
+            if(currentScale < 0.1) currentScale = 0.1;
+            // 使用 CSS 控制顯示大小
+            canvas.style.width = (canvas.width * currentScale) + "px";
+            canvas.style.height = (canvas.height * currentScale) + "px";
+            zoomLabel.innerText = Math.round(currentScale * 100) + "%";
+        }
+
+        function changeZoom(delta) { setZoom(currentScale + delta); }
+
+        function fitToScreen() {
+            if(!image.src) return;
+            // 讓圖片適應容器 (V8容器大小)
+            const wrapperW = canvasWrapper.clientWidth - 40;
+            const wrapperH = window.innerHeight * 0.7; // 概抓高度
+            const scaleX = wrapperW / image.width;
+            const scaleY = wrapperH / image.height;
+            let newScale = Math.min(scaleX, scaleY);
+            if(newScale > 1) newScale = 1; 
+            setZoom(newScale);
+        }
+
+        // --- 繪圖邏輯 (V13 座標修正) ---
         function setTool(t) {
             tool = t;
             document.getElementById('btnRect').classList.toggle('active', t === 'rect');
@@ -319,147 +337,68 @@
 
         function getPos(e) {
             const rect = canvas.getBoundingClientRect();
-            const scaleX = canvas.width / rect.width;
-            const scaleY = canvas.height / rect.height;
-            return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+            // 關鍵：除以 currentScale 轉回原始座標
+            return { 
+                x: (e.clientX - rect.left) / currentScale, 
+                y: (e.clientY - rect.top) / currentScale 
+            };
         }
 
         canvas.addEventListener('mousedown', (e) => {
             if (!image.src) return;
             const pos = getPos(e);
             
+            // 點擊取消聚焦
             if(focusedShapeIndex !== -1 && !isDrawing) {
-                focusedShapeIndex = -1;
-                renderLayers();
-                redraw();
+                focusedShapeIndex = -1; renderLayers(); redraw();
             }
 
             if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } 
-            else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); }
+            else { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); }
             redraw();
         });
 
         canvas.addEventListener('mousemove', (e) => {
             if (!image.src) return;
             const pos = getPos(e);
-            if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } 
+            if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); }
             else if (tool === 'poly' && currentShape) {
                 redraw(); ctx.beginPath();
                 const last = currentShape.points[currentShape.points.length - 1];
                 ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y);
-                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke();
+                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2 / currentScale; ctx.stroke();
             }
         });
 
-        canvas.addEventListener('mouseup', (e) => {
+        canvas.addEventListener('mouseup', () => {
             if (tool === 'rect' && isDrawing) {
                 isDrawing = false;
-                if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape, -1);
+                if(Math.abs(currentShape.start.x - currentShape.end.x) > 5) openEditor(currentShape, -1);
                 currentShape = null; redraw();
             }
         });
 
-        canvas.addEventListener('dblclick', (e) => {
+        canvas.addEventListener('dblclick', () => {
             if (tool === 'poly' && currentShape && currentShape.points.length > 2) {
                 openEditor(currentShape, -1); currentShape = null; redraw();
             }
         });
 
-        // --- 編輯視窗邏輯 ---
-        function openEditor(shapeData, index) {
-            isEditingNote = false;
-            tempShape = shapeData;
-            editingShapeIndex = index;
-            
-            document.getElementById('modalTitle').innerText = index === -1 ? "📝 建立新區域" : "✏️ 編輯區域資訊";
-            document.getElementById('titleGroup').classList.remove('hidden');
-            document.getElementById('descLabel').innerText = "詳細內容";
-            
-            inputTitle.value = index === -1 ? ("區域 " + (shapes.length + 1)) : shapeData.title;
-            inputDesc.value = index === -1 ? "" : shapeData.desc.replace(/<br>/g, '\n'); 
-            
-            modal.classList.add('show');
-            inputTitle.focus();
-        }
-
-        function editGlobalNote() {
-            isEditingNote = true;
-            document.getElementById('modalTitle').innerText = "📋 編輯專案筆記 (前言/總結)";
-            document.getElementById('titleGroup').classList.add('hidden');
-            document.getElementById('descLabel').innerText = "筆記內容 (支援換行)";
-            inputDesc.value = globalNote.replace(/<br>/g, '\n');
-            modal.classList.add('show');
-            inputDesc.focus();
-        }
-
-        function cancelModal() { 
-            tempShape = null; editingShapeIndex = -1;
-            modal.classList.remove('show'); 
-            redraw(); 
-        }
-
-        function saveModal() {
-            let formattedDesc = inputDesc.value.replace(/\n/g, '<br>');
-            
-            if (isEditingNote) {
-                globalNote = formattedDesc;
-            } else {
-                if(!tempShape) return;
-                tempShape.title = inputTitle.value || "未命名";
-                tempShape.desc = formattedDesc;
-                
-                if(editingShapeIndex === -1) {
-                    shapes.push(tempShape);
-                    focusedShapeIndex = shapes.length - 1; 
-                } else {
-                    shapes[editingShapeIndex] = tempShape;
-                    focusedShapeIndex = editingShapeIndex;
-                }
-                tempShape = null;
-                editingShapeIndex = -1;
-            }
-            
-            modal.classList.remove('show');
-            renderLayers(); 
-            // 如果清單被隱藏了，新增時自動打開提示使用者
-            if(sidebarPanel.classList.contains('collapsed') && !isEditingNote) {
-                toggleSidebar(); 
-            }
-            redraw();
-        }
-        
-        function addHighlight() {
-            const textarea = inputDesc;
-            const start = textarea.selectionStart;
-            const end = textarea.selectionEnd;
-            if (start === end) { alert("請先選取文字！"); return; }
-            const text = textarea.value;
-            const newText = text.substring(0, start) + `<span class="highlight-text">${text.substring(start, end)}</span>` + text.substring(end);
-            textarea.value = newText;
-            textarea.focus();
-        }
-
-        // --- 核心：渲染圖層清單與互動 ---
+        // --- 清單與編輯邏輯 ---
         function renderLayers() {
             layerListEl.innerHTML = '';
             shapeCountEl.innerText = shapes.length;
-
-            if (shapes.length === 0) {
-                layerListEl.innerHTML = '<div class="empty-state">尚無項目<br>請在圖片上繪製區域</div>';
-                return;
+            if(shapes.length === 0) {
+                layerListEl.innerHTML = '<div class="empty-state">尚無項目</div>'; return;
             }
-
             shapes.forEach((s, idx) => {
                 const item = document.createElement('div');
                 item.className = `layer-item ${idx === focusedShapeIndex ? 'active' : ''}`;
                 item.onclick = () => focusShape(idx);
-
-                const typeLabel = s.type === 'rect' ? '矩形' : '多邊形';
-                
                 item.innerHTML = `
                     <div class="layer-top">
-                        <div class="layer-title">${s.title}</div>
-                        <div class="layer-type">${typeLabel}</div>
+                        <span class="layer-title">${s.title}</span>
+                        <span style="font-size:0.8em; color:#888;">${s.type==='rect'?'矩形':'多邊形'}</span>
                     </div>
                     <div class="layer-actions">
                         <button class="mini-btn edit" onclick="event.stopPropagation(); editShape(${idx})">✏️</button>
@@ -472,116 +411,162 @@
 
         function focusShape(index) {
             focusedShapeIndex = index;
-            renderLayers(); 
-            redraw(); 
+            renderLayers(); redraw();
+            
+            // 自動捲動 (V13邏輯)
+            const s = shapes[index];
+            let cx, cy;
+            if(s.type==='rect') { cx = (s.start.x+s.end.x)/2; cy = (s.start.y+s.end.y)/2; }
+            else { cx = s.points[0].x; cy = s.points[0].y; }
+            
+            const scrollX = (cx * currentScale) - (canvasWrapper.clientWidth / 2);
+            const scrollY = (cy * currentScale) - (canvasWrapper.clientHeight / 2);
+            canvasWrapper.scrollTo({ left: scrollX, top: scrollY, behavior: 'smooth' });
         }
 
-        function deleteShape(index) {
-            if(confirm('確定刪除這個區域嗎？')) {
-                shapes.splice(index, 1);
-                focusedShapeIndex = -1;
-                renderLayers();
-                redraw();
-            }
-        }
-
-        function editShape(index) {
-            openEditor(shapes[index], index);
-        }
-
-        function clearAll() { 
-            if(confirm("確定清空所有區域與筆記？")) { 
-                shapes = []; globalNote=""; focusedShapeIndex = -1;
-                renderLayers(); redraw(); 
-            } 
-        }
-
-        // --- 繪圖邏輯 ---
         function redraw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (image.src) ctx.drawImage(image, 0, 0);
             ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
             
+            const lw = 2 / currentScale; // 線寬隨縮放調整
+
             shapes.forEach((s, idx) => {
-                const isFocused = (idx === focusedShapeIndex);
-                drawShape(s, true, isFocused);
+                const isActive = (idx === focusedShapeIndex);
+                drawShape(s, true, isActive, lw);
             });
-            
-            if (currentShape && tool === 'rect') drawShape(currentShape, false, false);
-            if (currentShape && tool === 'poly') {
-                ctx.beginPath();
-                ctx.moveTo(currentShape.points[0].x, currentShape.points[0].y);
-                for(let p of currentShape.points) ctx.lineTo(p.x, p.y);
-                ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke();
-            }
+            if (currentShape) drawShape(currentShape, false, false, lw);
         }
 
-        function drawShape(s, isConfirmed, isFocused) {
+        function drawShape(s, confirmed, active, lw) {
             ctx.beginPath();
-            if (s.type === 'rect') {
-                const w = s.end.x - s.start.x; const h = s.end.y - s.start.y;
-                ctx.rect(s.start.x, s.start.y, w, h);
-            } else {
-                ctx.moveTo(s.points[0].x, s.points[0].y);
-                for(let p of s.points) ctx.lineTo(p.x, p.y); ctx.closePath();
-            }
+            if (s.type === 'rect') ctx.rect(s.start.x, s.start.y, s.end.x-s.start.x, s.end.y-s.start.y);
+            else { ctx.moveTo(s.points[0].x, s.points[0].y); s.points.forEach(p=>ctx.lineTo(p.x,p.y)); ctx.closePath(); }
             
-            if(isConfirmed) {
-                if (isFocused) {
-                    ctx.fillStyle = "rgba(255, 215, 0, 0.3)"; 
-                    ctx.strokeStyle = "#FFD700"; 
-                    ctx.lineWidth = 4;
-                } else {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.05)"; 
-                    ctx.strokeStyle = "#fff"; 
-                    ctx.lineWidth = 2;
-                }
+            if (confirmed) {
+                ctx.strokeStyle = active ? "#FFD700" : "white";
+                ctx.lineWidth = active ? lw*2 : lw;
+                ctx.fillStyle = active ? "rgba(255,215,0,0.3)" : "rgba(255,255,255,0.05)";
                 ctx.fill(); ctx.stroke();
-
-                let center = s.type === 'rect' ? {x:s.start.x, y:s.start.y} : s.points[0];
-                ctx.font = "14px sans-serif";
-                const textMetrics = ctx.measureText(s.title);
-                const badgeWidth = textMetrics.width + 12;
                 
-                ctx.fillStyle = isFocused ? "#faad14" : "#28a745"; 
-                ctx.beginPath(); ctx.roundRect(center.x, center.y - 26, badgeWidth, 24, 4); ctx.fill();
-                ctx.fillStyle = isFocused ? "#000" : "white"; 
-                ctx.fillText(s.title, center.x + 6, center.y - 8);
+                // 標籤
+                const fontSize = Math.max(14, 14 / currentScale);
+                const center = s.type==='rect'?{x:s.start.x, y:s.start.y}:s.points[0];
+                ctx.font = `${fontSize}px sans-serif`;
+                const textW = ctx.measureText(s.title).width + 10;
+                ctx.fillStyle = active ? "#faad14" : "#28a745";
+                ctx.fillRect(center.x, center.y - fontSize*1.5, textW, fontSize*1.4);
+                ctx.fillStyle = "#fff";
+                ctx.fillText(s.title, center.x+5, center.y - fontSize*0.4);
             } else {
-                ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 2; ctx.stroke();
+                ctx.strokeStyle = "#ff0055"; ctx.lineWidth = lw; ctx.stroke();
             }
         }
 
-        // --- 下載生成 HTML ---
+        // --- 編輯功能 ---
+        function openEditor(shape, index) {
+            isEditingNote = false; tempShape = shape; editingShapeIndex = index;
+            document.getElementById('modalTitle').innerText = index===-1?"新增":"編輯";
+            document.getElementById('titleGroup').classList.remove('hidden');
+            inputTitle.value = index===-1 ? ("區域 "+(shapes.length+1)) : shape.title;
+            inputDesc.value = index===-1 ? "" : shape.desc.replace(/<br>/g, '\n');
+            modal.classList.add('show');
+            inputTitle.focus();
+        }
+        function editGlobalNote() {
+            isEditingNote = true;
+            document.getElementById('modalTitle').innerText = "專案筆記";
+            document.getElementById('titleGroup').classList.add('hidden');
+            inputDesc.value = globalNote.replace(/<br>/g, '\n');
+            modal.classList.add('show');
+        }
+        function saveModal() {
+            const val = inputDesc.value.replace(/\n/g, '<br>');
+            if(isEditingNote) globalNote = val;
+            else {
+                if(!tempShape) return;
+                tempShape.title = inputTitle.value || "未命名";
+                tempShape.desc = val;
+                if(editingShapeIndex === -1) { shapes.push(tempShape); focusedShapeIndex = shapes.length-1; }
+                else { shapes[editingShapeIndex] = tempShape; focusedShapeIndex = editingShapeIndex; }
+            }
+            modal.classList.remove('show'); renderLayers(); redraw();
+        }
+        function cancelModal() { modal.classList.remove('show'); redraw(); }
+        function deleteShape(idx) { if(confirm("刪除?")) { shapes.splice(idx,1); focusedShapeIndex=-1; renderLayers(); redraw(); } }
+        function editShape(idx) { openEditor(shapes[idx], idx); }
+        function clearAll() { if(confirm("清空?")) { shapes=[]; globalNote=""; renderLayers(); redraw(); } }
+
+        // --- 下載 (保持 V13 的強大 Viewer) ---
         function downloadPresentation() {
-            if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
-            const restoreData = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
-            const safeNote = globalNote ? globalNote : "（此專案尚無筆記）";
+            if(!originalImageDataUrl || shapes.length===0) { alert("無內容"); return; }
+            const data = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             
-            let svgContent = ''; let listItems = '';
-            shapes.forEach((s, index) => {
-                const safeDesc = s.desc.replace(/"/g, '&quot;');
-                const id = `region-${index}`;
-                if(s.type === 'rect') {
-                    const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
-                    const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
-                    svgContent += `<rect id="svg-${id}" x="${x}" y="${y}" width="${w}" height="${h}" class="interactive-area" data-id="${id}" data-title="${s.title}" data-desc="${safeDesc}"></rect>`;
+            let svg = '', list = '';
+            shapes.forEach((s,i) => {
+                const id = `r${i}`;
+                if(s.type==='rect') {
+                    const w = Math.abs(s.end.x-s.start.x), h = Math.abs(s.end.y-s.start.y);
+                    const x = Math.min(s.start.x, s.end.x), y = Math.min(s.start.y, s.end.y);
+                    svg += `<rect id="s-${id}" x="${x}" y="${y}" width="${w}" height="${h}" class="ia" onclick="act('${id}')"></rect>`;
                 } else {
-                    const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
-                    svgContent += `<polygon id="svg-${id}" points="${points}" class="interactive-area" data-id="${id}" data-title="${s.title}" data-desc="${safeDesc}"></polygon>`;
+                    const pts = s.points.map(p=>`${p.x},${p.y}`).join(' ');
+                    svg += `<polygon id="s-${id}" points="${pts}" class="ia" onclick="act('${id}')"></polygon>`;
                 }
-                listItems += `<div class="list-item" id="list-${id}" onclick="activateRegion('${id}')"><div class="item-title">${s.title}</div><div class="item-desc">${s.desc}</div></div>`;
+                list += `<div class="li" id="l-${id}" onclick="act('${id}')"><b>${s.title}</b><p>${s.desc}</p></div>`;
             });
 
-            // Viewer 樣版
-            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>訓練資訊儀表板</title><style>body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; } .layout-container { display: flex; width: 100%; height: 100%; } .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: flex-start; align-items: flex-start; border-right: 1px solid #333; scroll-behavior: smooth; } .stage { position: relative; margin: 0 auto; transform-origin: center top; box-shadow: 0 0 50px rgba(0,0,0,0.5); width: 100%; transition: width 0.3s ease; } img { display: block; width: 100%; height: auto; } .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; } .sidebar { flex: 1; min-width: 300px; max-width: 400px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; overflow: hidden; z-index: 20;} .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; } .header-title { font-size: 1.1em; font-weight: bold; color: #28a745; display: flex; align-items: center; gap: 8px;} .note-btn { background: #6610f2; color: white; border: none; padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.85em; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); } .note-btn:hover { background: #520dc2; transform: translateY(-1px); } .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; scroll-behavior: smooth; } .list-item { background: #383838; margin-bottom: 15px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; overflow: hidden; } .list-item:hover { background: #444; } .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); } .item-title { padding: 15px; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; } .item-title::after { content: '+'; color: #888; } .list-item.active .item-title::after { content: '−'; color: #fff; } .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); } .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; } .interactive-area { fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.3); stroke-width: 2; transition: all 0.2s; cursor: pointer; } .interactive-area:hover { stroke: #28a745; stroke-width: 3; fill: rgba(40,167,69,0.1); } .interactive-area.active { stroke: #28a745; stroke-width: 5; fill: rgba(40,167,69,0.25); animation: pulse 2s infinite; } @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } } .interactive-area.show-all { stroke: #17a2b8 !important; stroke-width: 2 !important; stroke-opacity: 0.8 !important; fill: rgba(23, 162, 184, 0.1) !important; } .interactive-area.active.show-all { stroke: #28a745 !important; stroke-width: 5 !important; fill: rgba(40,167,69,0.25) !important; } .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold; } .zoom-controls { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; position: fixed; } .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; } .zoom-btn:hover { background: #28a745; border-color: #28a745; } .zoom-btn.active { background: #17a2b8; border-color: #17a2b8; box-shadow: 0 0 10px rgba(23, 162, 184, 0.5); } .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } .note-card { background: #2b2b2b; color: #eee; width: 90%; max-width: 600px; max-height: 80vh; border-radius: 12px; padding: 0; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid #444; } .note-header { padding: 15px 20px; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; background: #333; border-radius: 12px 12px 0 0;} .note-close { cursor: pointer; color: #aaa; font-size: 1.5em; line-height: 1; } .note-close:hover { color: #fff; } .note-body { padding: 25px; overflow-y: auto; line-height: 1.8; font-size: 1.05em; white-space: pre-wrap; } @media (max-width: 768px) { .layout-container { flex-direction: column; } .map-section { flex: 1; min-height: 40vh; } .sidebar { flex: 1; min-width: 100%; } } </style></head><body><div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage"><img src="${originalImageDataUrl}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="toggleAll(this)" title="顯示所有標示框">👁️ 全顯</button><div style="width:1px; background:#666; height:20px; margin: 0 5px;"></div><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div class="header-title">📝 區域說明導覽</div><button class="note-btn" onclick="toggleNote()">📋 閱讀筆記</button></div><div class="sidebar-content" id="sidebarList">${listItems}</div></div></div><div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div class="note-header"><span>📋 專案筆記 / 前情提要</span><span class="note-close" onclick="toggleNote()">&times;</span></div><div class="note-body">${safeNote}</div></div></div><script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script><script>const mapSection = document.getElementById('mapSection'); const stage = document.getElementById('stage'); let currentWidthPercent = 100; function updateZoom() { stage.style.width = currentWidthPercent + '%'; } function zoomIn() { currentWidthPercent += 20; updateZoom(); } function zoomOut() { if(currentWidthPercent > 40) currentWidthPercent -= 20; updateZoom(); } function setZoom(mode) { if(mode === 'fit') currentWidthPercent = 95; else currentWidthPercent = 100; updateZoom(); } let currentActiveId = null; function activateRegion(id) { if(currentActiveId) { document.getElementById('svg-' + currentActiveId)?.classList.remove('active'); document.getElementById('list-' + currentActiveId)?.classList.remove('active'); } if(currentActiveId === id) { currentActiveId = null; return; } currentActiveId = id; const svgEl = document.getElementById('svg-' + id); const listEl = document.getElementById('list-' + id); svgEl?.classList.add('active'); listEl?.classList.add('active'); listEl?.scrollIntoView({ behavior: 'smooth', block: 'center' }); svgEl?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } function toggleAll(btn) { const allAreas = document.querySelectorAll('.interactive-area'); const isActive = btn.classList.toggle('active'); allAreas.forEach(area => { if(isActive) area.classList.add('show-all'); else area.classList.remove('show-all'); }); } function toggleNote() { const modal = document.getElementById('noteModal'); if(modal.style.display === 'flex') modal.style.display = 'none'; else modal.style.display = 'flex'; } document.querySelectorAll('.interactive-area').forEach(area => { area.addEventListener('click', (e) => { e.stopPropagation(); activateRegion(area.getAttribute('data-id')); }); }); mapSection.addEventListener('click', (e) => { if(e.target === mapSection || e.target === stage || e.target.tagName === 'IMG') { if(currentActiveId) { document.getElementById('svg-' + currentActiveId)?.classList.remove('active'); document.getElementById('list-' + currentActiveId)?.classList.remove('active'); currentActiveId = null; } } }); <\/script></body></html>`;
+            const html = `<!DOCTYPE html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>導覽</title><style>
+            body{margin:0;background:#222;color:#eee;font-family:sans-serif;height:100vh;display:flex;overflow:hidden;}
+            .main{flex:3;position:relative;background:#111;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+            .stage{position:relative;transition:transform 0.3s ease-out;transform-origin:center;}
+            img{display:block;max-width:none;} .ol{position:absolute;top:0;left:0;width:100%;height:100%;}
+            .sidebar{flex:1;min-width:300px;max-width:400px;background:#333;display:flex;flex-direction:column;border-left:1px solid #444;z-index:2;}
+            .head{padding:15px;background:#444;display:flex;justify-content:space-between;align-items:center;}
+            .list{flex:1;overflow-y:auto;padding:10px;}
+            .li{background:#444;margin-bottom:10px;padding:15px;border-radius:5px;cursor:pointer;border-left:4px solid transparent;}
+            .li:hover{background:#555;} .li.active{border-left-color:#28a745;background:#555;}
+            .li p{max-height:0;overflow:hidden;margin:0;opacity:0;transition:0.3s;color:#ccc;font-size:0.9em;}
+            .li.active p{max-height:500px;opacity:1;margin-top:10px;padding-top:10px;border-top:1px solid #666;}
+            .ia{fill:rgba(255,255,255,0);stroke:rgba(255,255,255,0.5);stroke-width:2;cursor:pointer;transition:0.2s;}
+            .ia:hover{fill:rgba(40,167,69,0.2);stroke:#28a745;} 
+            .ia.active{fill:rgba(40,167,69,0.3);stroke:#28a745;stroke-width:4;animation:p 2s infinite;}
+            @keyframes p{0%{stroke-opacity:1}50%{stroke-opacity:0.5}100%{stroke-opacity:1}}
+            .ctrl{position:absolute;bottom:20px;left:20px;display:flex;gap:5px;background:rgba(0,0,0,0.7);padding:5px;border-radius:20px;}
+            .btn{background:transparent;border:1px solid #777;color:#fff;padding:2px 10px;border-radius:10px;cursor:pointer;}
+            .note{display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.8);z-index:9;justify-content:center;align-items:center;}
+            .nb{background:#333;padding:20px;border-radius:8px;max-width:600px;width:90%;max-height:80vh;overflow:auto;}
+            </style></head><body>
+            <div class="main" id="m">
+                <div class="stage" id="st"><img src="${originalImageDataUrl}"><svg class="ol" viewBox="0 0 ${canvas.width} ${canvas.height}">${svg}</svg></div>
+                <div class="ctrl"><button class="btn" onclick="fit()">Fit</button><button class="btn" onclick="zm(0.2)">+</button><button class="btn" onclick="zm(-0.2)">-</button></div>
+            </div>
+            <div class="sidebar"><div class="head"><b>列表</b><button class="btn" onclick="document.getElementById('nt').style.display='flex'">筆記</button></div><div class="list" id="lst">${list}</div></div>
+            <div class="note" id="nt" onclick="this.style.display='none'"><div class="nb" onclick="event.stopPropagation()"><h3>筆記</h3><div>${globalNote||'(無)'}</div></div></div>
+            <script id="restore-data" type="application/json">${JSON.stringify(data)}<\/script>
+            <script>
+            let sc=1, tx=0, ty=0, actId=null; 
+            const st=document.getElementById('st'), m=document.getElementById('m');
+            function tr(){ st.style.transform=\`translate(\${tx}px,\${ty}px) scale(\${sc})\`; }
+            function fit(){ 
+                const wr=m.clientWidth/st.clientWidth, hr=m.clientHeight/st.clientHeight; 
+                sc=Math.min(wr,hr)*0.95; tx=0; ty=0; tr(); 
+            }
+            function zm(d){ sc+=d; if(sc<0.1)sc=0.1; tr(); }
+            window.onload=()=>{ fit(); };
+            function act(id){
+                if(actId) { document.getElementById('s-'+actId)?.classList.remove('active'); document.getElementById('l-'+actId)?.classList.remove('active'); }
+                if(actId===id){ actId=null; return; }
+                actId=id;
+                document.getElementById('s-'+id)?.classList.add('active');
+                const li=document.getElementById('l-'+id); li?.classList.add('active');
+                li?.scrollIntoView({behavior:'smooth',block:'center'});
+            }
+            <\/script></body></html>`;
 
-            const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "dashboard_v11";
-            link.download = rawName + ".html";
+            link.href = URL.createObjectURL(new Blob([html], {type:"text/html"}));
+            link.download = (fileNameInput.value||"map_v14") + ".html";
             link.click();
         }
     </script>
