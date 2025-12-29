@@ -3,83 +3,60 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V21 (完美 Excel 版)</title>
+    <title>Image Map 生成器 V24 (系統維護版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 核心佈局 --- */
-        body { 
-            font-family: "Microsoft JhengHei", -apple-system, sans-serif; 
-            background: #f4f6f8; 
-            display: flex; flex-direction: column; align-items: center; 
-            padding: 20px; margin: 0; 
-        }
-
+        body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
         h1 { color: #333; margin-bottom: 5px; }
         .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
-        
         .main-controls { display: flex; gap: 15px; margin-bottom: 15px; width: 100%; justify-content: center; }
         .file-group { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
-
         .toolbar { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 10; position: sticky; top: 10px; }
         
         button { padding: 8px 18px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
         button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
-        /* Excel 按鈕樣式 */
         button.excel { background: #1D6F42; color: white; border-color: #1D6F42; box-shadow: 0 4px 10px rgba(29,111,66,0.3); }
         button.duplicate { color: #fd7e14; border-color: #fd7e14; }
         button.danger { color: #dc3545; border-color: #dc3545; }
         button.info { color: #17a2b8; border-color: #17a2b8; }
         button.note { color: #6610f2; border-color: #6610f2; }
+        button.magic { background: #6f42c1; color: white; border-color: #6f42c1; }
+        button.settings { background: #343a40; color: white; border-color: #343a40; }
 
         /* --- 畫布區域 --- */
-        #canvas-wrapper { 
-            position: relative; 
-            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
-            border: 4px solid white; 
-            border-radius: 4px; 
-            background: #ddd; 
-            min-width: 600px; min-height: 400px; 
-            margin-bottom: 50px;
-        }
+        #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; background: #ddd; min-width: 600px; min-height: 400px; margin-bottom: 50px; }
         canvas { display: block; cursor: crosshair; }
-
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
         /* --- 懸浮清單 --- */
-        .sidekick-panel {
-            position: fixed; right: 20px; top: 100px; width: 240px;
-            background: white; border-radius: 10px;
-            box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee;
-            z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s;
-        }
+        .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 240px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
         .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
-        
-        .sidekick-header {
-            padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee;
-            border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center;
-            font-weight: bold; color: #555; font-size: 0.9em; cursor: move;
-        }
+        .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #555; font-size: 0.9em; cursor: move; }
         .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
-        .sidekick-toggle:hover { color: #333; }
-        
         .sidekick-content { flex: 1; overflow-y: auto; padding: 10px; background: #fff; border-radius: 0 0 10px 10px; }
-
-        .sk-item {
-            padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px;
-            cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent;
-            display: flex; justify-content: space-between; align-items: center; background: #fff;
-        }
+        .sk-item { padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px; cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; background: #fff; }
         .sk-item:hover { background: #f4f6f8; }
         .sk-item.active { border-left-color: #28a745; background: #e8f5e9; border-color: #c3e6cb; }
         .sk-actions { display: flex; gap: 4px; }
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
-        .sk-btn:hover { background: #eee; }
-        
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 
+        /* --- V23: 標籤管理 Modal --- */
+        .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
+        .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
+        .tag-row:last-child { border-bottom: none; }
+        .tag-row input[type="text"] { flex: 1; padding: 6px; }
+        .tag-row input[type="color"] { width: 40px; height: 35px; border: none; cursor: pointer; }
+        .tag-add-box { background: #f8f9fa; padding: 15px; border-radius: 8px; border: 1px solid #eee; display: flex; gap: 8px; align-items: center; margin-bottom: 10px; }
+        
+        /* V24: 系統維護區 */
+        .system-zone { margin-top: 20px; padding-top: 20px; border-top: 2px dashed #eee; }
+        .system-stats { font-size: 0.85em; color: #666; margin-bottom: 10px; }
+        
         /* --- 編輯 Modal --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
         .editor-modal.show { visibility: visible; opacity: 1; }
@@ -95,6 +72,11 @@
         .color-opt:hover { transform: scale(1.1); }
         .color-opt.selected { border-color: #333; transform: scale(1.1); }
         
+        .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 30px; }
+        .tag-chip { font-size: 0.85em; padding: 6px 12px; border-radius: 20px; cursor: pointer; border: 1px solid #eee; transition: 0.2s; display: flex; align-items: center; gap: 5px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .tag-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #28a745; }
+        .tag-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
+
         .textarea-container { position: relative; }
         textarea { width: 100%; height: 160px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
         .textarea-toolbar { position: absolute; top: 1px; left: 1px; right: 1px; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 6px; border-radius: 6px 6px 0 0; display: flex; gap: 8px; align-items: center; }
@@ -109,8 +91,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V21</h1>
-    <div class="subtitle">視覺化監控 -> 完美無警告 Excel 截圖報表 (V21)</div>
+    <h1>Image Map 生成器 V24</h1>
+    <div class="subtitle">視覺化監控 -> 系統維護版 (安全釋放)</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -127,6 +109,7 @@
         <span style="font-size:0.9em; color:#666;">步驟 2: 繪製</span>
         <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
         <button id="btnPoly" onclick="setTool('poly')">畫多邊形</button>
+        <button class="settings" onclick="openTagManager()">⚙️ 設定標籤</button>
         <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         <button onclick="undo()">復原</button>
@@ -158,28 +141,31 @@
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
             
             <div id="titleGroup">
-                <label>標題 (可簡短，Excel 會有截圖)</label>
-                <input type="text" id="inputTitle" placeholder="例如：結帳按鈕 (功能A)">
+                <label>標題</label>
+                <input type="text" id="inputTitle" placeholder="例如：結帳按鈕">
             </div>
 
             <div id="statusGroup">
-                <label>狀態標籤 (Excel 會顯示背景色)</label>
+                <label>標籤 (點選下方預設值，或直接輸入)</label>
+                <div class="quick-tags" id="quickTagsArea"></div>
+
                 <div class="status-picker">
-                    <input type="text" id="inputStatusText" placeholder="標籤 (如: 待修復)..." style="flex:1;">
-                    <div class="color-opt" style="background:#dc3545;" onclick="selectColor('#dc3545')" title="紅色-緊急"></div>
-                    <div class="color-opt" style="background:#ffc107;" onclick="selectColor('#ffc107')" title="黃色-進行中"></div>
-                    <div class="color-opt" style="background:#28a745;" onclick="selectColor('#28a745')" title="綠色-完成"></div>
-                    <div class="color-opt" style="background:#007bff;" onclick="selectColor('#007bff')" title="藍色-資訊"></div>
-                    <div class="color-opt" style="background:#6c757d;" onclick="selectColor('#6c757d')" title="灰色-待辦"></div>
+                    <input type="text" id="inputStatusText" placeholder="自由輸入標籤名稱..." style="flex:1;">
+                    <div class="color-opt" style="background:#dc3545;" onclick="selectColor('#dc3545')" title="紅色"></div>
+                    <div class="color-opt" style="background:#ffc107;" onclick="selectColor('#ffc107')" title="黃色"></div>
+                    <div class="color-opt" style="background:#28a745;" onclick="selectColor('#28a745')" title="綠色"></div>
+                    <div class="color-opt" style="background:#007bff;" onclick="selectColor('#007bff')" title="藍色"></div>
+                    <div class="color-opt" style="background:#6c757d;" onclick="selectColor('#6c757d')" title="灰色"></div>
                 </div>
                 <input type="hidden" id="inputStatusColor" value="">
             </div>
 
             <div>
-                <label>詳細內容 (備註)</label>
+                <label>詳細內容</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
                         <button class="tool-btn" onclick="addHighlight()">🖍️ 重點</button>
+                        <button id="btnGenLegend" class="tool-btn magic hidden" onclick="generateLegendToNote()">✨ 從圖面產生圖例</button>
                     </div>
                     <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
                 </div>
@@ -196,34 +182,74 @@
         </div>
     </div>
 
+    <div class="editor-modal" id="tagManagerModal">
+        <div class="editor-card">
+            <h3>⚙️ 標籤管理中心</h3>
+            
+            <div class="tag-add-box">
+                <input type="color" id="newTagColor" value="#dc3545" title="選擇顏色">
+                <input type="text" id="newTagName" placeholder="輸入新標籤名稱..." style="flex:1;">
+                <button class="primary" style="padding: 6px 15px;" onclick="addPresetTag()">＋ 新增</button>
+            </div>
+
+            <div class="tag-modal-content" id="presetList"></div>
+
+            <div class="system-zone">
+                <div style="font-weight:bold; color:#dc3545; margin-bottom:5px;">⚠️ 系統維護 (危險區)</div>
+                <div class="system-stats" id="storageStats">讀取中...</div>
+                <button class="danger" style="width:100%;" onclick="resetAllSettings()">♻️ 重置所有設定 (清空暫存)</button>
+                <p style="font-size:0.8em; color:#888; margin-top:5px;">* 這會刪除瀏覽器記住的所有標籤設定，但不會刪除您目前畫布上的內容。</p>
+            </div>
+
+            <div class="modal-footer">
+                <button onclick="closeTagManager()">關閉</button>
+            </div>
+        </div>
+    </div>
+
     <script>
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
         const imgInput = document.getElementById('imgInput');
         const importInput = document.getElementById('importInput');
+        
+        // Modals
         const modal = document.getElementById('editorModal');
+        const tagManagerModal = document.getElementById('tagManagerModal');
+
+        // Inputs
         const inputTitle = document.getElementById('inputTitle');
         const inputDesc = document.getElementById('inputDesc');
         const inputStatusText = document.getElementById('inputStatusText');
         const inputStatusColor = document.getElementById('inputStatusColor');
         const statusGroup = document.getElementById('statusGroup');
+        const quickTagsArea = document.getElementById('quickTagsArea');
+        const btnGenLegend = document.getElementById('btnGenLegend');
         const fileNameInput = document.getElementById('fileNameInput');
         const sidekickPanel = document.getElementById('sidekickPanel');
         const sidekickList = document.getElementById('sidekickList');
         const skTitle = document.getElementById('skTitle');
         const duplicateBtnGroup = document.getElementById('duplicateBtnGroup');
+        const storageStats = document.getElementById('storageStats');
         
+        // Tag Manager Inputs
+        const newTagName = document.getElementById('newTagName');
+        const newTagColor = document.getElementById('newTagColor');
+        const presetList = document.getElementById('presetList');
+
         let focusedShapeIndex = -1;
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
         let isDrawing = false; let tool = 'rect'; let originalImageDataUrl = "";
         let globalNote = ""; let isEditingNote = false; let editingShapeIndex = -1;
+        let tagPresets = []; 
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V21)", 320, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V24)", 320, 250);
+        
+        loadPresets();
 
-        // --- 核心圖片與還原邏輯 ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
@@ -266,6 +292,79 @@
             image.src = src;
         }
 
+        // --- V24: 標籤管理與系統維護 ---
+        function loadPresets() {
+            const saved = localStorage.getItem('imgMapPresets_v23');
+            if(saved) { tagPresets = JSON.parse(saved); } 
+            else {
+                tagPresets = [
+                    { name: '嚴重 Bug', color: '#dc3545' },
+                    { name: '功能優化', color: '#ffc107' },
+                    { name: '已完成', color: '#28a745' }
+                ];
+            }
+        }
+
+        function savePresets() { localStorage.setItem('imgMapPresets_v23', JSON.stringify(tagPresets)); }
+
+        function openTagManager() {
+            renderPresetList();
+            // V24: 更新統計數據
+            const size = (new Blob([localStorage.getItem('imgMapPresets_v23') || '']).size / 1024).toFixed(2);
+            storageStats.innerText = `目前儲存了 ${tagPresets.length} 個標籤 (佔用約 ${size} KB)`;
+            tagManagerModal.classList.add('show');
+        }
+
+        function closeTagManager() { tagManagerModal.classList.remove('show'); }
+
+        // V24: 重置功能
+        function resetAllSettings() {
+            if(confirm("警告：這將會清除所有您儲存的「常用標籤」設定，恢復成系統預設值。\n\n確定要執行嗎？")) {
+                localStorage.removeItem('imgMapPresets_v23');
+                loadPresets(); // 重新載入預設值
+                renderPresetList();
+                openTagManager(); // 刷新統計顯示
+                alert("系統快取已清除，設定已恢復原廠狀態。");
+            }
+        }
+
+        function renderPresetList() {
+            presetList.innerHTML = '';
+            if(tagPresets.length === 0) {
+                presetList.innerHTML = '<div style="text-align:center; color:#999; padding:20px;">尚無設定標籤</div>';
+                return;
+            }
+            tagPresets.forEach((tag, idx) => {
+                const row = document.createElement('div');
+                row.className = 'tag-row';
+                row.innerHTML = `
+                    <div style="width:24px; height:24px; border-radius:50%; background:${tag.color}; border:1px solid #ddd;"></div>
+                    <span style="flex:1; font-weight:bold;">${tag.name}</span>
+                    <button class="danger" style="padding:4px 10px; font-size:0.8em;" onclick="deletePreset(${idx})">刪除</button>
+                `;
+                presetList.appendChild(row);
+            });
+        }
+
+        function addPresetTag() {
+            const name = newTagName.value.trim(); const color = newTagColor.value;
+            if(!name) { alert("請輸入名稱"); return; }
+            tagPresets.push({ name, color });
+            savePresets();
+            newTagName.value = '';
+            renderPresetList();
+            openTagManager(); // 刷新統計
+        }
+
+        function deletePreset(idx) {
+            if(confirm("確定刪除此預設標籤？")) {
+                tagPresets.splice(idx, 1);
+                savePresets();
+                renderPresetList();
+                openTagManager(); // 刷新統計
+            }
+        }
+
         // --- 繪圖互動 ---
         function setTool(t) {
             tool = t;
@@ -283,9 +382,7 @@
 
         canvas.addEventListener('mousedown', (e) => {
             if (!image.src) return;
-            if(focusedShapeIndex !== -1 && !isDrawing) {
-                focusedShapeIndex = -1; renderSidekick(); redraw();
-            }
+            if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); }
             const pos = getPos(e);
             if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } 
             else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); }
@@ -325,25 +422,49 @@
             });
         }
 
+        function renderQuickTags() {
+            quickTagsArea.innerHTML = '';
+            if(tagPresets.length === 0) {
+                quickTagsArea.innerHTML = '<span style="color:#999; font-size:0.8em; align-self:center;">(無預設標籤，請點選上方「⚙️設定標籤」新增)</span>';
+                return;
+            }
+            tagPresets.forEach(tag => {
+                const chip = document.createElement('div');
+                chip.className = 'tag-chip';
+                chip.innerHTML = `<span class="tag-dot" style="background:${tag.color}"></span>${tag.name}`;
+                chip.onclick = () => { inputStatusText.value = tag.name; selectColor(tag.color); };
+                quickTagsArea.appendChild(chip);
+            });
+        }
+
+        function generateLegendToNote() {
+            const uniqueTags = new Map();
+            shapes.forEach(s => {
+                if(s.statusText && s.statusColor) {
+                    const key = s.statusText + "|" + s.statusColor;
+                    uniqueTags.set(key, { text: s.statusText, color: s.statusColor });
+                }
+            });
+            if(uniqueTags.size === 0) { alert("目前圖面上沒有任何標籤可供提取！"); return; }
+            let legendHtml = "\n\n<b>【圖例說明】</b><br>";
+            uniqueTags.forEach(tag => { legendHtml += `<span style="color:${tag.color}">●</span> <b>${tag.text}</b><br>`; });
+            legendHtml += "<hr>";
+            const textArea = document.getElementById('inputDesc');
+            textArea.value += legendHtml;
+            alert("已將圖例添加到下方筆記中！");
+        }
+
         function toggleSidekick() {
             sidekickPanel.classList.toggle('minimized');
             const toggleBtn = sidekickPanel.querySelector('.sidekick-toggle');
-            if(sidekickPanel.classList.contains('minimized')) {
-                toggleBtn.innerText = "➕";
-                skTitle.innerText = "";
-            } else {
-                toggleBtn.innerText = "➖";
-                renderSidekick();
-            }
+            if(sidekickPanel.classList.contains('minimized')) { toggleBtn.innerText = "➕"; skTitle.innerText = ""; } 
+            else { toggleBtn.innerText = "➖"; renderSidekick(); }
         }
 
         function renderSidekick() {
             sidekickList.innerHTML = '';
             skTitle.innerText = `項目列表 (${shapes.length})`;
-            if(shapes.length === 0) {
-                sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>';
-                return;
-            }
+            if(shapes.length === 0) { sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>'; return; }
             shapes.forEach((s, idx) => {
                 const item = document.createElement('div');
                 item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
@@ -364,31 +485,17 @@
         }
 
         function focusShape(index) {
-            focusedShapeIndex = index;
-            renderSidekick();
-            redraw();
+            focusedShapeIndex = index; renderSidekick(); redraw();
             const center = getShapeCenter(shapes[index]);
             const rect = canvas.getBoundingClientRect();
-            window.scrollTo({
-                top: (window.scrollY + rect.top + center.y) - (window.innerHeight / 2),
-                left: (window.scrollX + rect.left + center.x) - (window.innerWidth / 2),
-                behavior: 'smooth'
-            });
+            window.scrollTo({ top: (window.scrollY + rect.top + center.y) - (window.innerHeight / 2), left: (window.scrollX + rect.left + center.x) - (window.innerWidth / 2), behavior: 'smooth' });
         }
 
-        // --- V20 核心技術：計算中心點與偏移 ---
         function getShapeCenter(s) {
-            if(s.type === 'rect') {
-                return {
-                    x: (s.start.x + s.end.x) / 2,
-                    y: (s.start.y + s.end.y) / 2
-                };
-            } else {
+            if(s.type === 'rect') { return { x: (s.start.x + s.end.x) / 2, y: (s.start.y + s.end.y) / 2 }; } 
+            else {
                 let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                s.points.forEach(p => {
-                    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-                    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-                });
+                s.points.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
                 return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
             }
         }
@@ -399,9 +506,7 @@
             for(let i = 0; i < targetIndex; i++) {
                 const otherCenter = getShapeCenter(shapes[i]);
                 const dist = Math.sqrt(Math.pow(targetCenter.x - otherCenter.x, 2) + Math.pow(targetCenter.y - otherCenter.y, 2));
-                if(dist < 20) {
-                    overlapCount++;
-                }
+                if(dist < 20) overlapCount++;
             }
             return { x: overlapCount * 26, y: 0 };
         }
@@ -410,12 +515,7 @@
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (image.src) ctx.drawImage(image, 0, 0);
             ctx.fillStyle = "rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            
-            shapes.forEach((s, idx) => {
-                const isActive = (idx === focusedShapeIndex);
-                drawShape(s, true, isActive, idx);
-            });
-            
+            shapes.forEach((s, idx) => { const isActive = (idx === focusedShapeIndex); drawShape(s, true, isActive, idx); });
             if (currentShape && tool === 'rect') drawShape(currentShape, false);
             if (currentShape && tool === 'poly') {
                 ctx.beginPath();
@@ -435,21 +535,14 @@
                 for(let p of s.points) ctx.lineTo(p.x, p.y); ctx.closePath();
             }
             if(isConfirmed) {
-                if(isActive) {
-                    ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 4;
-                    ctx.fillStyle = "rgba(255, 215, 0, 0.3)";
-                } else {
-                    ctx.fillStyle = "rgba(255, 255, 255, 0.05)";
-                    ctx.strokeStyle = "#fff"; ctx.lineWidth = 2;
-                }
+                if(isActive) { ctx.strokeStyle = "#FFD700"; ctx.lineWidth = 4; ctx.fillStyle = "rgba(255, 215, 0, 0.3)"; } 
+                else { ctx.fillStyle = "rgba(255, 255, 255, 0.05)"; ctx.strokeStyle = "#fff"; ctx.lineWidth = 2; }
                 ctx.fill(); ctx.stroke();
 
                 let center = getShapeCenter(s);
                 let offset = {x:0, y:0};
                 if(index !== -1) offset = getBadgeOffset(index);
-                
-                const badgeX = center.x + offset.x;
-                const badgeY = center.y + offset.y;
+                const badgeX = center.x + offset.x; const badgeY = center.y + offset.y;
 
                 ctx.font = "14px sans-serif";
                 const textMetrics = ctx.measureText(s.title);
@@ -465,22 +558,16 @@
                 ctx.fillText(s.title, textX, badgeY - 8);
 
                 if(hasStatus) {
-                    ctx.beginPath();
-                    ctx.arc(badgeX + 10, badgeY - 14, 4, 0, Math.PI * 2);
-                    ctx.fillStyle = s.statusColor; ctx.fill();
-                    ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
+                    ctx.beginPath(); ctx.arc(badgeX + 10, badgeY - 14, 4, 0, Math.PI * 2);
+                    ctx.fillStyle = s.statusColor; ctx.fill(); ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
                 }
 
-                ctx.beginPath();
-                ctx.arc(badgeX - 10, badgeY - 15, 10, 0, Math.PI*2);
-                ctx.fillStyle = "#333"; ctx.fill();
-                ctx.strokeStyle = "#fff"; ctx.lineWidth=1; ctx.stroke();
+                ctx.beginPath(); ctx.arc(badgeX - 10, badgeY - 15, 10, 0, Math.PI*2);
+                ctx.fillStyle = "#333"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth=1; ctx.stroke();
                 ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center";
                 ctx.fillText(index + 1, badgeX - 10, badgeY - 11);
                 ctx.textAlign = "start"; 
-            } else {
-                ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 2; ctx.stroke();
-            }
+            } else { ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 2; ctx.stroke(); }
         }
 
         function openEditor(shapeData, index) {
@@ -488,18 +575,17 @@
             document.getElementById('modalTitle').innerText = index === -1 ? "📝 新增區域" : "📝 編輯區域";
             document.getElementById('titleGroup').classList.remove('hidden');
             statusGroup.classList.remove('hidden');
+            btnGenLegend.classList.add('hidden'); 
 
-            if(index !== -1) {
-                duplicateBtnGroup.classList.remove('hidden');
-            } else {
-                duplicateBtnGroup.classList.add('hidden');
-            }
+            if(index !== -1) { duplicateBtnGroup.classList.remove('hidden'); } 
+            else { duplicateBtnGroup.classList.add('hidden'); }
 
             inputTitle.value = index === -1 ? ("項目 " + (shapes.length + 1)) : shapeData.title;
             inputDesc.value = index === -1 ? "" : shapeData.desc.replace(/<br>/g, '\n');
             inputStatusText.value = shapeData.statusText || "";
             selectColor(shapeData.statusColor || "");
-
+            
+            renderQuickTags();
             modal.classList.add('show');
             inputTitle.focus();
         }
@@ -508,20 +594,10 @@
             if(!tempShape) return;
             const newShape = JSON.parse(JSON.stringify(tempShape));
             newShape.title = (newShape.title || "") + " (複製)";
-            newShape.desc = ""; 
-            newShape.statusText = "";
-            newShape.statusColor = "";
-
-            shapes.push(newShape);
-            focusedShapeIndex = shapes.length - 1;
-            
-            modal.classList.remove('show');
-            renderSidekick();
-            redraw();
-            
-            setTimeout(() => {
-                openEditor(shapes[focusedShapeIndex], focusedShapeIndex);
-            }, 300);
+            newShape.desc = ""; newShape.statusText = ""; newShape.statusColor = "";
+            shapes.push(newShape); focusedShapeIndex = shapes.length - 1;
+            modal.classList.remove('show'); renderSidekick(); redraw();
+            setTimeout(() => { openEditor(shapes[focusedShapeIndex], focusedShapeIndex); }, 300);
         }
 
         function editGlobalNote() {
@@ -530,6 +606,7 @@
             document.getElementById('titleGroup').classList.add('hidden');
             statusGroup.classList.add('hidden');
             duplicateBtnGroup.classList.add('hidden');
+            btnGenLegend.classList.remove('hidden'); 
             inputDesc.value = globalNote.replace(/<br>/g, '\n');
             modal.classList.add('show');
         }
@@ -549,8 +626,7 @@
                 if(editingShapeIndex === -1) { shapes.push(tempShape); focusedShapeIndex = shapes.length - 1; } 
                 else { shapes[editingShapeIndex] = tempShape; focusedShapeIndex = editingShapeIndex; }
             }
-            modal.classList.remove('show');
-            renderSidekick(); redraw();
+            modal.classList.remove('show'); renderSidekick(); redraw();
         }
 
         function addHighlight() {
@@ -561,231 +637,94 @@
             textarea.value = text.substring(0, start) + `<span class="highlight-text">${text.substring(start, end)}</span>` + text.substring(end);
         }
 
-        function deleteShape(index) {
-            if(confirm("確定刪除？")) { shapes.splice(index, 1); focusedShapeIndex = -1; renderSidekick(); redraw(); }
-        }
+        function deleteShape(index) { if(confirm("確定刪除？")) { shapes.splice(index, 1); focusedShapeIndex = -1; renderSidekick(); redraw(); } }
         function editShape(index) { openEditor(shapes[index], index); }
         function undo() { shapes.pop(); renderSidekick(); redraw(); }
-        function clearAll() { if(confirm("確定清空？")) { shapes = []; globalNote=""; renderSidekick(); redraw(); } }
+        
+        // V24: 清除功能同時釋放記憶體
+        function clearAll() { 
+            if(confirm("確定清空畫布？(不會清除已儲存的標籤設定)")) { 
+                shapes = []; globalNote=""; 
+                // 這裡其實不需要特別釋放 image 物件，因為它可能還需要用
+                // 但清空 shapes 就足夠釋放大部分專案佔用的 RAM
+                renderSidekick(); redraw(); 
+            } 
+        }
 
         function getRegionImage(s) {
-            const tCanvas = document.createElement('canvas');
-            const tCtx = tCanvas.getContext('2d');
+            const tCanvas = document.createElement('canvas'); const tCtx = tCanvas.getContext('2d');
             let x, y, w, h;
-
-            if (s.type === 'rect') {
-                x = Math.min(s.start.x, s.end.x); y = Math.min(s.start.y, s.end.y);
-                w = Math.abs(s.end.x - s.start.x); h = Math.abs(s.end.y - s.start.y);
-            } else {
-                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                s.points.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
-                x = minX; y = minY; w = maxX - minX; h = maxY - minY;
-            }
-            const padding = 10;
-            x = Math.max(0, x - padding); y = Math.max(0, y - padding);
-            w = w + padding * 2; h = h + padding * 2;
-
-            tCanvas.width = w; tCanvas.height = h;
-            tCtx.drawImage(image, x, y, w, h, 0, 0, w, h);
+            if (s.type === 'rect') { x = Math.min(s.start.x, s.end.x); y = Math.min(s.start.y, s.end.y); w = Math.abs(s.end.x - s.start.x); h = Math.abs(s.end.y - s.start.y); } 
+            else { let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity; s.points.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); }); x = minX; y = minY; w = maxX - minX; h = maxY - minY; }
+            const padding = 10; x = Math.max(0, x - padding); y = Math.max(0, y - padding); w = w + padding * 2; h = h + padding * 2;
+            tCanvas.width = w; tCanvas.height = h; tCtx.drawImage(image, x, y, w, h, 0, 0, w, h);
             return tCanvas.toDataURL('image/jpeg', 0.8);
         }
 
-        // --- V21: 使用 ExcelJS 庫生成真正的 .xlsx (無警告) ---
         async function downloadRealExcel() {
             if(shapes.length === 0) { alert("目前沒有資料可匯出！"); return; }
-            
-            // 創建 Workbook
-            const workbook = new ExcelJS.Workbook();
-            const sheet = workbook.addWorksheet('專案報表');
+            const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet('專案報表');
+            sheet.columns = [ { header: 'ID', key: 'id', width: 8 }, { header: '截圖快照', key: 'thumb', width: 25 }, { header: '標題 (項目)', key: 'title', width: 30 }, { header: '狀態', key: 'status', width: 15 }, { header: '詳細說明', key: 'desc', width: 50 } ];
+            sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } }; sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } }; sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
 
-            // 設定欄位
-            sheet.columns = [
-                { header: 'ID', key: 'id', width: 8 },
-                { header: '截圖快照', key: 'thumb', width: 25 }, // 圖片欄寬一點
-                { header: '標題 (項目)', key: 'title', width: 30 },
-                { header: '狀態', key: 'status', width: 15 },
-                { header: '詳細說明', key: 'desc', width: 50 }
-            ];
-
-            // 設定標頭樣式
-            sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
-            sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } };
-            sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
-
-            // 遍歷數據
             for (let i = 0; i < shapes.length; i++) {
-                const s = shapes[i];
-                const rowNum = i + 2; // 因為標頭是第 1 行
-                
-                // 處理文字
+                const s = shapes[i]; const rowNum = i + 2;
                 const statusColor = s.statusColor ? s.statusColor.replace('#', '') : 'FFFFFF';
-                // 判斷字體顏色 (深色背景配白字)
                 const isDark = (statusColor === 'dc3545' || statusColor === '217346' || statusColor === '007bff');
                 const fontColor = isDark ? 'FFFFFFFF' : 'FF000000';
-
-                // 移除 HTML 標籤
                 let cleanDesc = (s.desc || "").replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
 
-                // 加入文字資料
                 const row = sheet.getRow(rowNum);
-                row.values = {
-                    id: i + 1,
-                    title: s.title || "",
-                    status: s.statusText || "",
-                    desc: cleanDesc
-                };
-                
-                // 設定列高 (為了放圖片)
+                row.values = { id: i + 1, title: s.title || "", status: s.statusText || "", desc: cleanDesc };
                 row.height = 60;
-
-                // 樣式設定
                 row.getCell('id').alignment = { vertical: 'middle', horizontal: 'center' };
                 row.getCell('title').alignment = { vertical: 'middle', wrapText: true };
                 row.getCell('desc').alignment = { vertical: 'middle', wrapText: true };
-                
-                // 狀態欄位顏色
                 const statusCell = row.getCell('status');
                 statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
                 statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + statusColor } };
                 statusCell.font = { color: { argb: fontColor }, bold: true };
-
-                // 處理圖片
+                
                 const base64 = getRegionImage(s);
-                const imageId = workbook.addImage({
-                    base64: base64,
-                    extension: 'jpeg',
-                });
-
-                // 將圖片加入工作表 (浮動在 B 欄)
-                sheet.addImage(imageId, {
-                    tl: { col: 1.1, row: rowNum - 1 + 0.1 }, // Top-Left: B欄位內縮一點
-                    br: { col: 1.9, row: rowNum - 0.1 },     // Bottom-Right
-                    editAs: 'oneCell' // 圖片隨儲存格移動
-                });
+                const imageId = workbook.addImage({ base64: base64, extension: 'jpeg', });
+                sheet.addImage(imageId, { tl: { col: 1.1, row: rowNum - 1 + 0.1 }, br: { col: 1.9, row: rowNum - 0.1 }, editAs: 'oneCell' });
             }
-
-            // 寫入 Buffer 並下載
             const buffer = await workbook.xlsx.writeBuffer();
             const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-            
-            const link = document.createElement("a");
-            const url = URL.createObjectURL(blob);
-            link.href = url;
-            
-            let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "project_report_v21";
-            link.download = rawName + ".xlsx"; // 注意：現在是真正的 .xlsx
-
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+            let rawName = fileNameInput.value.trim(); if(!rawName) rawName = "project_report_v24";
+            link.download = rawName + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
             const restoreData = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             const safeNote = globalNote ? globalNote : "（此專案尚無筆記）";
-            
             let svgContent = ''; let listItems = '';
 
             const processedShapes = shapes.map((s, idx) => {
-                const center = getShapeCenter(s);
-                const offset = getBadgeOffset(idx); 
+                const center = getShapeCenter(s); const offset = getBadgeOffset(idx); 
                 return { ...s, cx: center.x, cy: center.y, ox: offset.x, oy: offset.y, id: idx + 1 };
             });
 
             processedShapes.forEach((s, index) => {
                 const id = `region-${index}`;
                 let shapeHtml = '';
-                
-                if(s.type === 'rect') {
-                    const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
-                    const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
-                    shapeHtml = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`;
-                } else {
-                    const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
-                    shapeHtml = `<polygon points="${points}" />`;
-                }
+                if(s.type === 'rect') { const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y); const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y); shapeHtml = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`; } 
+                else { const points = s.points.map(p => `${p.x},${p.y}`).join(' '); shapeHtml = `<polygon points="${points}" />`; }
+                const badgeCx = s.cx + s.ox; const badgeCy = s.cy + s.oy;
 
-                const badgeCx = s.cx + s.ox;
-                const badgeCy = s.cy + s.oy;
-
-                svgContent += `
-                    <g id="svg-${id}" class="interactive-group" 
-                       onclick="activateRegion('${id}')"
-                       onmouseenter="hoverRegion('${id}', true)" 
-                       onmouseleave="hoverRegion('${id}', false)">
-                        ${shapeHtml}
-                        <circle cx="${badgeCx}" cy="${badgeCy}" r="12" class="badge-bg" />
-                        <text x="${badgeCx}" y="${badgeCy}" dy="4" text-anchor="middle" class="badge-text">${s.id}</text>
-                    </g>`;
-
-                let badgeHtml = '';
-                if(s.statusText) {
-                    const bgColor = s.statusColor || '#6c757d';
-                    badgeHtml = `<span class="status-badge" style="background-color:${bgColor}">${s.statusText}</span>`;
-                }
-
-                listItems += `
-                    <div class="list-item" id="list-${id}" 
-                         onclick="activateRegion('${id}')"
-                         onmouseenter="hoverRegion('${id}', true)" 
-                         onmouseleave="hoverRegion('${id}', false)">
-                        <div class="item-title">
-                            <div style="display:flex; align-items:center; gap:8px;">
-                                <span class="list-num">${s.id}.</span>
-                                ${s.title} ${badgeHtml}
-                            </div>
-                        </div>
-                        <div class="item-desc">${s.desc}</div>
-                    </div>`;
+                svgContent += `<g id="svg-${id}" class="interactive-group" onclick="activateRegion('${id}')" onmouseenter="hoverRegion('${id}', true)" onmouseleave="hoverRegion('${id}', false)">${shapeHtml}<circle cx="${badgeCx}" cy="${badgeCy}" r="12" class="badge-bg" /><text x="${badgeCx}" y="${badgeCy}" dy="4" text-anchor="middle" class="badge-text">${s.id}</text></g>`;
+                let badgeHtml = ''; if(s.statusText) { const bgColor = s.statusColor || '#6c757d'; badgeHtml = `<span class="status-badge" style="background-color:${bgColor}">${s.statusText}</span>`; }
+                listItems += `<div class="list-item" id="list-${id}" onclick="activateRegion('${id}')" onmouseenter="hoverRegion('${id}', true)" onmouseleave="hoverRegion('${id}', false)"><div class="item-title"><div style="display:flex; align-items:center; gap:8px;"><span class="list-num">${s.id}.</span>${s.title} ${badgeHtml}</div></div><div class="item-desc">${s.desc}</div></div>`;
             });
 
-            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽 V21</title><style>
-                body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
-                .layout-container { display: flex; width: 100%; height: 100%; }
-                .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
-                .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; }
-                img { display: block; max-width: 100%; }
-                .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-                .interactive-group { cursor: pointer; pointer-events: auto; }
-                .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
-                .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; }
-                .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
-                .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
-                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; }
-                .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; }
-                .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
-                .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; }
-                .interactive-group.active .badge-text { fill: #fff; }
-                @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
-                .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
-                .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
-                .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
-                .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
-                .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; }
-                .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
-                .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
-                .list-num { color: #888; margin-right: 5px; font-family: monospace; }
-                .list-item.active .list-num { color: #28a745; }
-                .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
-                .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; }
-                .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
-                .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; }
-                .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
-                .zoom-btn:hover { background: #28a745; border-color: #28a745; }
-                .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
-                .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; }
-                .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
-            </style></head><body><div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${originalImageDataUrl}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listItems}</div></div></div><div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div><div class="note-body">${safeNote}</div></div></div><script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script><script>let currentZoom = 95; const stage = document.getElementById('stage'); function updateZoom() { stage.style.width = currentZoom + '%'; } function zoomIn() { currentZoom += 10; updateZoom(); } function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); } function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); } let activeId = null; function activateRegion(id) { if(activeId === id) { deactivate(); return; } if(activeId) deactivate(); activeId = id; document.getElementById('svg-' + id)?.classList.add('active'); const listItem = document.getElementById('list-' + id); listItem?.classList.add('active'); listItem?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } function deactivate() { if(!activeId) return; document.getElementById('svg-' + activeId)?.classList.remove('active'); document.getElementById('list-' + activeId)?.classList.remove('active'); activeId = null; } function hoverRegion(id, isEnter) { if(activeId === id) return; const svgEl = document.getElementById('svg-' + id); const listEl = document.getElementById('list-' + id); if(isEnter) { svgEl?.classList.add('hovered'); listEl?.classList.add('hovered'); } else { svgEl?.classList.remove('hovered'); listEl?.classList.remove('hovered'); } } function toggleNote() { const m = document.getElementById('noteModal'); m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; } <\/script></body></html>`;
+            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽 V24</title><style>body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; } .layout-container { display: flex; width: 100%; height: 100%; } .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; } .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; } img { display: block; max-width: 100%; } .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; } .interactive-group { cursor: pointer; pointer-events: auto; } .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; } .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; } .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; } .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); } .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; } .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; } .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; } .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; } .interactive-group.active .badge-text { fill: #fff; } @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } } .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; } .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; } .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; } .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; } .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; } .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); } .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; } .list-num { color: #888; margin-right: 5px; font-family: monospace; } .list-item.active .list-num { color: #28a745; } .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); } .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; } .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; } .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; } .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; } .zoom-btn:hover { background: #28a745; border-color: #28a745; } .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; } .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; } </style></head><body><div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${originalImageDataUrl}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listItems}</div></div></div><div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div><div class="note-body">${safeNote}</div></div></div><script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script><script>let currentZoom = 95; const stage = document.getElementById('stage'); function updateZoom() { stage.style.width = currentZoom + '%'; } function zoomIn() { currentZoom += 10; updateZoom(); } function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); } function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); } let activeId = null; function activateRegion(id) { if(activeId === id) { deactivate(); return; } if(activeId) deactivate(); activeId = id; document.getElementById('svg-' + id)?.classList.add('active'); const listItem = document.getElementById('list-' + id); listItem?.classList.add('active'); listItem?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } function deactivate() { if(!activeId) return; document.getElementById('svg-' + activeId)?.classList.remove('active'); document.getElementById('list-' + activeId)?.classList.remove('active'); activeId = null; } function hoverRegion(id, isEnter) { if(activeId === id) return; const svgEl = document.getElementById('svg-' + id); const listEl = document.getElementById('list-' + id); if(isEnter) { svgEl?.classList.add('hovered'); listEl?.classList.add('hovered'); } else { svgEl?.classList.remove('hovered'); listEl?.classList.remove('hovered'); } } function toggleNote() { const m = document.getElementById('noteModal'); m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; } <\/script></body></html>`;
 
             const blob = new Blob([htmlContent], { type: "text/html" });
-            const link = document.createElement("a");
-            link.href = URL.createObjectURL(blob);
-            let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "dashboard_v21";
-            link.download = rawName + ".html";
-            link.click();
+            const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
+            let rawName = fileNameInput.value.trim(); if(!rawName) rawName = "dashboard_v24";
+            link.download = rawName + ".html"; link.click();
         }
     </script>
 </body>
