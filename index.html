@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V18 (PM專案管理版)</title>
+    <title>Image Map 生成器 V21 (完美 Excel 版)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 核心佈局 --- */
         body { 
@@ -25,7 +26,9 @@
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
         button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
-        button.excel { background: #217346; color: white; border-color: #217346; box-shadow: 0 4px 10px rgba(33,115,70,0.3); }
+        /* Excel 按鈕樣式 */
+        button.excel { background: #1D6F42; color: white; border-color: #1D6F42; box-shadow: 0 4px 10px rgba(29,111,66,0.3); }
+        button.duplicate { color: #fd7e14; border-color: #fd7e14; }
         button.danger { color: #dc3545; border-color: #dc3545; }
         button.info { color: #17a2b8; border-color: #17a2b8; }
         button.note { color: #6610f2; border-color: #6610f2; }
@@ -98,15 +101,16 @@
         .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .tips { font-size: 0.8em; color: #888; margin-left: auto; }
         
-        .modal-footer { display: flex; justify-content: flex-end; gap: 10px; margin-top: 10px; border-top: 1px solid #eee; padding-top: 15px;}
+        .modal-footer { display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #eee; padding-top: 15px;}
+        .footer-right { display: flex; gap: 10px; }
         .hidden { display: none; }
         .highlight-text { background-color: #ffeb3b; padding: 0 2px; }
     </style>
 </head>
 <body>
 
-    <h1>Image Map 生成器 V18</h1>
-    <div class="subtitle">視覺化監控 -> 匯出 HTML (含編號索引與 Hover 連動)</div>
+    <h1>Image Map 生成器 V21</h1>
+    <div class="subtitle">視覺化監控 -> 完美無警告 Excel 截圖報表 (V21)</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -131,7 +135,7 @@
         
         <span style="font-size:0.9em; color:#666;">步驟 3: 匯出</span>
         <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱">
-        <button class="excel" onclick="downloadCSV()">📊 下載 Excel</button>
+        <button class="excel" onclick="downloadRealExcel()">📊 下載 Excel (.xlsx)</button>
         <button class="primary" onclick="downloadPresentation()">📥 下載 HTML</button>
     </div>
 
@@ -154,14 +158,14 @@
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
             
             <div id="titleGroup">
-                <label>標題 (事項/模組名稱)</label>
-                <input type="text" id="inputTitle" placeholder="例如：結帳流程異常">
+                <label>標題 (可簡短，Excel 會有截圖)</label>
+                <input type="text" id="inputTitle" placeholder="例如：結帳按鈕 (功能A)">
             </div>
 
             <div id="statusGroup">
-                <label>狀態標籤 (進度/優先級)</label>
+                <label>狀態標籤 (Excel 會顯示背景色)</label>
                 <div class="status-picker">
-                    <input type="text" id="inputStatusText" placeholder="標籤 (如: 待修復, 緊急)..." style="flex:1;">
+                    <input type="text" id="inputStatusText" placeholder="標籤 (如: 待修復)..." style="flex:1;">
                     <div class="color-opt" style="background:#dc3545;" onclick="selectColor('#dc3545')" title="紅色-緊急"></div>
                     <div class="color-opt" style="background:#ffc107;" onclick="selectColor('#ffc107')" title="黃色-進行中"></div>
                     <div class="color-opt" style="background:#28a745;" onclick="selectColor('#28a745')" title="綠色-完成"></div>
@@ -172,18 +176,22 @@
             </div>
 
             <div>
-                <label>詳細內容 (問題描述/備註)</label>
+                <label>詳細內容 (備註)</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
                         <button class="tool-btn" onclick="addHighlight()">🖍️ 重點</button>
-                        <span class="tips">Enter 可換行 (Excel 會保留)</span>
                     </div>
                     <textarea id="inputDesc" placeholder="請輸入詳細說明..."></textarea>
                 </div>
             </div>
             <div class="modal-footer">
-                <button onclick="cancelModal()">取消</button>
-                <button class="primary" onclick="saveModal()">確定儲存</button>
+                <div id="duplicateBtnGroup">
+                    <button class="duplicate" type="button" onclick="duplicateShape()">📋 原地複製此區</button>
+                </div>
+                <div class="footer-right">
+                    <button onclick="cancelModal()">取消</button>
+                    <button class="primary" onclick="saveModal()">確定儲存</button>
+                </div>
             </div>
         </div>
     </div>
@@ -203,6 +211,7 @@
         const sidekickPanel = document.getElementById('sidekickPanel');
         const sidekickList = document.getElementById('sidekickList');
         const skTitle = document.getElementById('skTitle');
+        const duplicateBtnGroup = document.getElementById('duplicateBtnGroup');
         
         let focusedShapeIndex = -1;
         let image = new Image();
@@ -212,7 +221,7 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V18)", 320, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V21)", 320, 250);
 
         // --- 核心圖片與還原邏輯 ---
         imgInput.addEventListener('change', (e) => {
@@ -331,20 +340,16 @@
         function renderSidekick() {
             sidekickList.innerHTML = '';
             skTitle.innerText = `項目列表 (${shapes.length})`;
-            
             if(shapes.length === 0) {
                 sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>';
                 return;
             }
-
             shapes.forEach((s, idx) => {
                 const item = document.createElement('div');
                 item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
                 item.onclick = () => focusShape(idx);
-
                 const title = s.title || "未命名";
                 const dotHtml = s.statusColor ? `<span class="status-dot" style="background:${s.statusColor}"></span>` : '';
-                
                 item.innerHTML = `
                     <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold; display:flex; align-items:center;">
                         <span style="color:#999; font-size:0.8em; margin-right:5px;">${idx+1}.</span>${dotHtml}${title}
@@ -362,20 +367,43 @@
             focusedShapeIndex = index;
             renderSidekick();
             redraw();
-            const s = shapes[index];
-            let cx, cy;
-            if(s.type==='rect') {
-                cx = (s.start.x + s.end.x) / 2;
-                cy = (s.start.y + s.end.y) / 2;
-            } else {
-                cx = s.points[0].x; cy = s.points[0].y;
-            }
+            const center = getShapeCenter(shapes[index]);
             const rect = canvas.getBoundingClientRect();
             window.scrollTo({
-                top: (window.scrollY + rect.top + cy) - (window.innerHeight / 2),
-                left: (window.scrollX + rect.left + cx) - (window.innerWidth / 2),
+                top: (window.scrollY + rect.top + center.y) - (window.innerHeight / 2),
+                left: (window.scrollX + rect.left + center.x) - (window.innerWidth / 2),
                 behavior: 'smooth'
             });
+        }
+
+        // --- V20 核心技術：計算中心點與偏移 ---
+        function getShapeCenter(s) {
+            if(s.type === 'rect') {
+                return {
+                    x: (s.start.x + s.end.x) / 2,
+                    y: (s.start.y + s.end.y) / 2
+                };
+            } else {
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                s.points.forEach(p => {
+                    minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                    minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                });
+                return { x: (minX + maxX) / 2, y: (minY + maxY) / 2 };
+            }
+        }
+
+        function getBadgeOffset(targetIndex) {
+            const targetCenter = getShapeCenter(shapes[targetIndex]);
+            let overlapCount = 0;
+            for(let i = 0; i < targetIndex; i++) {
+                const otherCenter = getShapeCenter(shapes[i]);
+                const dist = Math.sqrt(Math.pow(targetCenter.x - otherCenter.x, 2) + Math.pow(targetCenter.y - otherCenter.y, 2));
+                if(dist < 20) {
+                    overlapCount++;
+                }
+            }
+            return { x: overlapCount * 26, y: 0 };
         }
 
         function redraw() {
@@ -385,8 +413,9 @@
             
             shapes.forEach((s, idx) => {
                 const isActive = (idx === focusedShapeIndex);
-                drawShape(s, true, isActive);
+                drawShape(s, true, isActive, idx);
             });
+            
             if (currentShape && tool === 'rect') drawShape(currentShape, false);
             if (currentShape && tool === 'poly') {
                 ctx.beginPath();
@@ -396,7 +425,7 @@
             }
         }
 
-        function drawShape(s, isConfirmed, isActive) {
+        function drawShape(s, isConfirmed, isActive, index = -1) {
             ctx.beginPath();
             if (s.type === 'rect') {
                 const w = s.end.x - s.start.x; const h = s.end.y - s.start.y;
@@ -415,7 +444,13 @@
                 }
                 ctx.fill(); ctx.stroke();
 
-                let center = s.type === 'rect' ? {x:s.start.x, y:s.start.y} : s.points[0];
+                let center = getShapeCenter(s);
+                let offset = {x:0, y:0};
+                if(index !== -1) offset = getBadgeOffset(index);
+                
+                const badgeX = center.x + offset.x;
+                const badgeY = center.y + offset.y;
+
                 ctx.font = "14px sans-serif";
                 const textMetrics = ctx.measureText(s.title);
                 const hasStatus = !!s.statusColor;
@@ -423,18 +458,26 @@
                 const badgeWidth = textMetrics.width + padding;
                 
                 ctx.fillStyle = isActive ? "#faad14" : "#28a745"; 
-                ctx.beginPath(); ctx.roundRect(center.x, center.y - 26, badgeWidth, 24, 4); ctx.fill();
+                ctx.beginPath(); ctx.roundRect(badgeX, badgeY - 26, badgeWidth, 24, 4); ctx.fill();
                 
                 ctx.fillStyle = isActive ? "#000" : "white"; 
-                const textX = center.x + (hasStatus ? 20 : 6);
-                ctx.fillText(s.title, textX, center.y - 8);
+                const textX = badgeX + (hasStatus ? 20 : 6);
+                ctx.fillText(s.title, textX, badgeY - 8);
 
                 if(hasStatus) {
                     ctx.beginPath();
-                    ctx.arc(center.x + 10, center.y - 14, 4, 0, Math.PI * 2);
+                    ctx.arc(badgeX + 10, badgeY - 14, 4, 0, Math.PI * 2);
                     ctx.fillStyle = s.statusColor; ctx.fill();
                     ctx.strokeStyle = "rgba(0,0,0,0.2)"; ctx.lineWidth = 1; ctx.stroke();
                 }
+
+                ctx.beginPath();
+                ctx.arc(badgeX - 10, badgeY - 15, 10, 0, Math.PI*2);
+                ctx.fillStyle = "#333"; ctx.fill();
+                ctx.strokeStyle = "#fff"; ctx.lineWidth=1; ctx.stroke();
+                ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center";
+                ctx.fillText(index + 1, badgeX - 10, badgeY - 11);
+                ctx.textAlign = "start"; 
             } else {
                 ctx.strokeStyle = "#ff0055"; ctx.lineWidth = 2; ctx.stroke();
             }
@@ -446,6 +489,12 @@
             document.getElementById('titleGroup').classList.remove('hidden');
             statusGroup.classList.remove('hidden');
 
+            if(index !== -1) {
+                duplicateBtnGroup.classList.remove('hidden');
+            } else {
+                duplicateBtnGroup.classList.add('hidden');
+            }
+
             inputTitle.value = index === -1 ? ("項目 " + (shapes.length + 1)) : shapeData.title;
             inputDesc.value = index === -1 ? "" : shapeData.desc.replace(/<br>/g, '\n');
             inputStatusText.value = shapeData.statusText || "";
@@ -455,11 +504,32 @@
             inputTitle.focus();
         }
 
+        function duplicateShape() {
+            if(!tempShape) return;
+            const newShape = JSON.parse(JSON.stringify(tempShape));
+            newShape.title = (newShape.title || "") + " (複製)";
+            newShape.desc = ""; 
+            newShape.statusText = "";
+            newShape.statusColor = "";
+
+            shapes.push(newShape);
+            focusedShapeIndex = shapes.length - 1;
+            
+            modal.classList.remove('show');
+            renderSidekick();
+            redraw();
+            
+            setTimeout(() => {
+                openEditor(shapes[focusedShapeIndex], focusedShapeIndex);
+            }, 300);
+        }
+
         function editGlobalNote() {
             isEditingNote = true;
             document.getElementById('modalTitle').innerText = "📋 編輯專案筆記";
             document.getElementById('titleGroup').classList.add('hidden');
             statusGroup.classList.add('hidden');
+            duplicateBtnGroup.classList.add('hidden');
             inputDesc.value = globalNote.replace(/<br>/g, '\n');
             modal.classList.add('show');
         }
@@ -498,94 +568,164 @@
         function undo() { shapes.pop(); renderSidekick(); redraw(); }
         function clearAll() { if(confirm("確定清空？")) { shapes = []; globalNote=""; renderSidekick(); redraw(); } }
 
-        // --- V17 新增：下載 Excel (CSV) 功能 ---
-        function downloadCSV() {
+        function getRegionImage(s) {
+            const tCanvas = document.createElement('canvas');
+            const tCtx = tCanvas.getContext('2d');
+            let x, y, w, h;
+
+            if (s.type === 'rect') {
+                x = Math.min(s.start.x, s.end.x); y = Math.min(s.start.y, s.end.y);
+                w = Math.abs(s.end.x - s.start.x); h = Math.abs(s.end.y - s.start.y);
+            } else {
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                s.points.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+                x = minX; y = minY; w = maxX - minX; h = maxY - minY;
+            }
+            const padding = 10;
+            x = Math.max(0, x - padding); y = Math.max(0, y - padding);
+            w = w + padding * 2; h = h + padding * 2;
+
+            tCanvas.width = w; tCanvas.height = h;
+            tCtx.drawImage(image, x, y, w, h, 0, 0, w, h);
+            return tCanvas.toDataURL('image/jpeg', 0.8);
+        }
+
+        // --- V21: 使用 ExcelJS 庫生成真正的 .xlsx (無警告) ---
+        async function downloadRealExcel() {
             if(shapes.length === 0) { alert("目前沒有資料可匯出！"); return; }
-            let csvContent = "\uFEFF"; 
-            csvContent += '"ID","標題 (項目)","狀態標籤","狀態色碼","詳細內容 (備註)"\n';
+            
+            // 創建 Workbook
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('專案報表');
 
-            shapes.forEach((s, idx) => {
-                const title = (s.title || "").replace(/"/g, '""');
-                const status = (s.statusText || "").replace(/"/g, '""');
-                const color = s.statusColor || "";
-                let rawDesc = (s.desc || "").replace(/<br>/g, '\n');
-                rawDesc = rawDesc.replace(/<[^>]+>/g, '');
-                const desc = rawDesc.replace(/"/g, '""');
-                csvContent += `"${idx+1}","${title}","${status}","${color}","${desc}"\n`;
-            });
+            // 設定欄位
+            sheet.columns = [
+                { header: 'ID', key: 'id', width: 8 },
+                { header: '截圖快照', key: 'thumb', width: 25 }, // 圖片欄寬一點
+                { header: '標題 (項目)', key: 'title', width: 30 },
+                { header: '狀態', key: 'status', width: 15 },
+                { header: '詳細說明', key: 'desc', width: 50 }
+            ];
 
-            const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+            // 設定標頭樣式
+            sheet.getRow(1).font = { bold: true, color: { argb: 'FFFFFFFF' } };
+            sheet.getRow(1).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF444444' } };
+            sheet.getRow(1).alignment = { vertical: 'middle', horizontal: 'center' };
+
+            // 遍歷數據
+            for (let i = 0; i < shapes.length; i++) {
+                const s = shapes[i];
+                const rowNum = i + 2; // 因為標頭是第 1 行
+                
+                // 處理文字
+                const statusColor = s.statusColor ? s.statusColor.replace('#', '') : 'FFFFFF';
+                // 判斷字體顏色 (深色背景配白字)
+                const isDark = (statusColor === 'dc3545' || statusColor === '217346' || statusColor === '007bff');
+                const fontColor = isDark ? 'FFFFFFFF' : 'FF000000';
+
+                // 移除 HTML 標籤
+                let cleanDesc = (s.desc || "").replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+
+                // 加入文字資料
+                const row = sheet.getRow(rowNum);
+                row.values = {
+                    id: i + 1,
+                    title: s.title || "",
+                    status: s.statusText || "",
+                    desc: cleanDesc
+                };
+                
+                // 設定列高 (為了放圖片)
+                row.height = 60;
+
+                // 樣式設定
+                row.getCell('id').alignment = { vertical: 'middle', horizontal: 'center' };
+                row.getCell('title').alignment = { vertical: 'middle', wrapText: true };
+                row.getCell('desc').alignment = { vertical: 'middle', wrapText: true };
+                
+                // 狀態欄位顏色
+                const statusCell = row.getCell('status');
+                statusCell.alignment = { vertical: 'middle', horizontal: 'center' };
+                statusCell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF' + statusColor } };
+                statusCell.font = { color: { argb: fontColor }, bold: true };
+
+                // 處理圖片
+                const base64 = getRegionImage(s);
+                const imageId = workbook.addImage({
+                    base64: base64,
+                    extension: 'jpeg',
+                });
+
+                // 將圖片加入工作表 (浮動在 B 欄)
+                sheet.addImage(imageId, {
+                    tl: { col: 1.1, row: rowNum - 1 + 0.1 }, // Top-Left: B欄位內縮一點
+                    br: { col: 1.9, row: rowNum - 0.1 },     // Bottom-Right
+                    editAs: 'oneCell' // 圖片隨儲存格移動
+                });
+            }
+
+            // 寫入 Buffer 並下載
+            const buffer = await workbook.xlsx.writeBuffer();
+            const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+            
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
-            link.setAttribute("href", url);
-            let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "project_status";
-            link.setAttribute("download", rawName + "_報表.csv");
+            link.href = url;
             
-            link.style.visibility = 'hidden';
+            let rawName = fileNameInput.value.trim();
+            if(!rawName) rawName = "project_report_v21";
+            link.download = rawName + ".xlsx"; // 注意：現在是真正的 .xlsx
+
             document.body.appendChild(link);
             link.click();
             document.body.removeChild(link);
         }
 
-        // --- V18 升級版：加入視覺編號與雙向 Hover ---
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
             const restoreData = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             const safeNote = globalNote ? globalNote : "（此專案尚無筆記）";
             
-            let svgContent = ''; 
-            let listItems = '';
+            let svgContent = ''; let listItems = '';
 
-            shapes.forEach((s, index) => {
+            const processedShapes = shapes.map((s, idx) => {
+                const center = getShapeCenter(s);
+                const offset = getBadgeOffset(idx); 
+                return { ...s, cx: center.x, cy: center.y, ox: offset.x, oy: offset.y, id: idx + 1 };
+            });
+
+            processedShapes.forEach((s, index) => {
                 const id = `region-${index}`;
-                const num = index + 1; // 編號從 1 開始
-
-                // 1. 計算中心點來放「編號球」
-                let cx, cy;
                 let shapeHtml = '';
                 
                 if(s.type === 'rect') {
-                    const w = Math.abs(s.end.x - s.start.x);
-                    const h = Math.abs(s.end.y - s.start.y);
-                    const x = Math.min(s.start.x, s.end.x); 
-                    const y = Math.min(s.start.y, s.end.y);
-                    cx = x + w/2; 
-                    cy = y + h/2;
+                    const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
+                    const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
                     shapeHtml = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`;
                 } else {
-                    // 多邊形計算簡單重心
-                    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
-                    s.points.forEach(p => {
-                        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
-                        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
-                    });
-                    cx = (minX + maxX) / 2;
-                    cy = (minY + maxY) / 2;
                     const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
                     shapeHtml = `<polygon points="${points}" />`;
                 }
 
-                // 2. 組合 SVG (群組化：形狀 + 編號球)
-                // onmouseover / onmouseout 實現滑鼠滑過即高亮
+                const badgeCx = s.cx + s.ox;
+                const badgeCy = s.cy + s.oy;
+
                 svgContent += `
                     <g id="svg-${id}" class="interactive-group" 
                        onclick="activateRegion('${id}')"
                        onmouseenter="hoverRegion('${id}', true)" 
                        onmouseleave="hoverRegion('${id}', false)">
-                        ${shapeHtml} <circle cx="${cx}" cy="${cy}" r="12" class="badge-bg" />
-                        <text x="${cx}" y="${cy}" dy="4" text-anchor="middle" class="badge-text">${num}</text>
-                    </g>
-                `;
+                        ${shapeHtml}
+                        <circle cx="${badgeCx}" cy="${badgeCy}" r="12" class="badge-bg" />
+                        <text x="${badgeCx}" y="${badgeCy}" dy="4" text-anchor="middle" class="badge-text">${s.id}</text>
+                    </g>`;
 
-                // 3. 處理狀態標籤
                 let badgeHtml = '';
                 if(s.statusText) {
                     const bgColor = s.statusColor || '#6c757d';
                     badgeHtml = `<span class="status-badge" style="background-color:${bgColor}">${s.statusText}</span>`;
                 }
 
-                // 4. 生成列表項目 (加入 onmouseenter/leave)
                 listItems += `
                     <div class="list-item" id="list-${id}" 
                          onclick="activateRegion('${id}')"
@@ -593,178 +733,57 @@
                          onmouseleave="hoverRegion('${id}', false)">
                         <div class="item-title">
                             <div style="display:flex; align-items:center; gap:8px;">
-                                <span class="list-num">${num}.</span> ${s.title} ${badgeHtml}
+                                <span class="list-num">${s.id}.</span>
+                                ${s.title} ${badgeHtml}
                             </div>
                         </div>
                         <div class="item-desc">${s.desc}</div>
                     </div>`;
             });
 
-            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽 V18</title><style>
+            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽 V21</title><style>
                 body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
                 .layout-container { display: flex; width: 100%; height: 100%; }
-                
-                /* --- 左側地圖區 --- */
                 .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
                 .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; }
                 img { display: block; max-width: 100%; }
                 .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-                
-                /* --- SVG 互動樣式 --- */
                 .interactive-group { cursor: pointer; pointer-events: auto; }
-                .interactive-group rect, .interactive-group polygon {
-                    fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s;
-                }
+                .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
                 .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; }
                 .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
-
-                /* Hover 效果 */
-                .interactive-group:hover rect, .interactive-group:hover polygon,
-                .interactive-group.hovered rect, .interactive-group.hovered polygon {
-                    stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1);
-                }
-                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg {
-                    fill: #FFD700; stroke: #000;
-                }
-                .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text {
-                    fill: #000;
-                }
-
-                /* Active (點擊鎖定) 效果 */
-                .interactive-group.active rect, .interactive-group.active polygon {
-                    stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2);
-                    animation: pulse 2s infinite;
-                }
+                .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
+                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; }
+                .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; }
+                .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
                 .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; }
                 .interactive-group.active .badge-text { fill: #fff; }
-                
                 @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
-
-                /* --- 右側列表區 --- */
                 .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
                 .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
                 .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
-                
                 .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
                 .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; }
                 .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
-                
                 .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
                 .list-num { color: #888; margin-right: 5px; font-family: monospace; }
                 .list-item.active .list-num { color: #28a745; }
-                
                 .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
                 .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; }
-
-                /* --- 其他元件 --- */
-                .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; }
                 .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
-                
                 .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; }
                 .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
                 .zoom-btn:hover { background: #28a745; border-color: #28a745; }
-
                 .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
                 .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; }
                 .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
-            </style></head>
-            <body>
-                <div class="layout-container">
-                    <div class="map-section" id="mapSection">
-                        <div class="stage" id="stage" style="width: 95%;">
-                            <img src="${originalImageDataUrl}">
-                            <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg>
-                        </div>
-                        <div class="zoom-controls">
-                            <button class="zoom-btn" onclick="setZoom(100)">100%</button>
-                            <button class="zoom-btn" onclick="setZoom('fit')">Fit</button>
-                            <button class="zoom-btn" onclick="zoomIn()">+</button>
-                            <button class="zoom-btn" onclick="zoomOut()">-</button>
-                        </div>
-                    </div>
-                    <div class="sidebar">
-                        <div class="sidebar-header">
-                            <div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div>
-                            <button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button>
-                        </div>
-                        <div class="sidebar-content" id="sidebarList">${listItems}</div>
-                    </div>
-                </div>
-
-                <div class="note-modal" id="noteModal" onclick="toggleNote()">
-                    <div class="note-card" onclick="event.stopPropagation()">
-                        <div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div>
-                        <div class="note-body">${safeNote}</div>
-                    </div>
-                </div>
-                
-                <script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script>
-                <script>
-                    let currentZoom = 95;
-                    const stage = document.getElementById('stage');
-                    
-                    function updateZoom() { stage.style.width = currentZoom + '%'; }
-                    function zoomIn() { currentZoom += 10; updateZoom(); }
-                    function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); }
-                    function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); }
-
-                    // 核心互動邏輯
-                    let activeId = null;
-
-                    // 1. 點擊鎖定 (Click)
-                    function activateRegion(id) {
-                        // 如果點擊同一個，則關閉
-                        if(activeId === id) {
-                            deactivate();
-                            return;
-                        }
-                        // 切換新的
-                        if(activeId) deactivate();
-                        
-                        activeId = id;
-                        document.getElementById('svg-' + id)?.classList.add('active');
-                        const listItem = document.getElementById('list-' + id);
-                        listItem?.classList.add('active');
-                        
-                        // 捲動到列表位置
-                        listItem?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-
-                    function deactivate() {
-                        if(!activeId) return;
-                        document.getElementById('svg-' + activeId)?.classList.remove('active');
-                        document.getElementById('list-' + activeId)?.classList.remove('active');
-                        activeId = null;
-                    }
-
-                    // 2. 滑鼠懸停預覽 (Hover)
-                    function hoverRegion(id, isEnter) {
-                        if(activeId === id) return; // 如果已經被點擊鎖定，就不處理 hover
-
-                        const svgEl = document.getElementById('svg-' + id);
-                        const listEl = document.getElementById('list-' + id);
-                        
-                        if(isEnter) {
-                            svgEl?.classList.add('hovered');
-                            listEl?.classList.add('hovered');
-                        } else {
-                            svgEl?.classList.remove('hovered');
-                            listEl?.classList.remove('hovered');
-                        }
-                    }
-
-                    function toggleNote() {
-                        const m = document.getElementById('noteModal');
-                        m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
-                    }
-                <\/script>
-            </body></html>`;
+            </style></head><body><div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${originalImageDataUrl}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listItems}</div></div></div><div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div><div class="note-body">${safeNote}</div></div></div><script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script><script>let currentZoom = 95; const stage = document.getElementById('stage'); function updateZoom() { stage.style.width = currentZoom + '%'; } function zoomIn() { currentZoom += 10; updateZoom(); } function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); } function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); } let activeId = null; function activateRegion(id) { if(activeId === id) { deactivate(); return; } if(activeId) deactivate(); activeId = id; document.getElementById('svg-' + id)?.classList.add('active'); const listItem = document.getElementById('list-' + id); listItem?.classList.add('active'); listItem?.scrollIntoView({ behavior: 'smooth', block: 'center' }); } function deactivate() { if(!activeId) return; document.getElementById('svg-' + activeId)?.classList.remove('active'); document.getElementById('list-' + activeId)?.classList.remove('active'); activeId = null; } function hoverRegion(id, isEnter) { if(activeId === id) return; const svgEl = document.getElementById('svg-' + id); const listEl = document.getElementById('list-' + id); if(isEnter) { svgEl?.classList.add('hovered'); listEl?.classList.add('hovered'); } else { svgEl?.classList.remove('hovered'); listEl?.classList.remove('hovered'); } } function toggleNote() { const m = document.getElementById('noteModal'); m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; } <\/script></body></html>`;
 
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "dashboard_v18";
+            if(!rawName) rawName = "dashboard_v21";
             link.download = rawName + ".html";
             link.click();
         }
