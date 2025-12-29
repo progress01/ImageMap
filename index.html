@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V17 (PM專案管理版)</title>
+    <title>Image Map 生成器 V18 (PM專案管理版)</title>
     <style>
         /* --- 核心佈局 --- */
         body { 
@@ -25,7 +25,6 @@
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
         button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
-        /* V17: Excel 按鈕樣式 */
         button.excel { background: #217346; color: white; border-color: #217346; box-shadow: 0 4px 10px rgba(33,115,70,0.3); }
         button.danger { color: #dc3545; border-color: #dc3545; }
         button.info { color: #17a2b8; border-color: #17a2b8; }
@@ -46,7 +45,7 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- V15 懸浮清單 --- */
+        /* --- 懸浮清單 --- */
         .sidekick-panel {
             position: fixed; right: 20px; top: 100px; width: 240px;
             background: white; border-radius: 10px;
@@ -76,7 +75,6 @@
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
         .sk-btn:hover { background: #eee; }
         
-        /* V16 狀態小點 */
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 
         /* --- 編輯 Modal --- */
@@ -89,7 +87,6 @@
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
         
-        /* V16 狀態標籤選擇器 */
         .status-picker { display: flex; gap: 10px; align-items: center; }
         .color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
         .color-opt:hover { transform: scale(1.1); }
@@ -108,8 +105,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V17</h1>
-    <div class="subtitle">視覺化監控 -> 匯出 Excel 專案表</div>
+    <h1>Image Map 生成器 V18</h1>
+    <div class="subtitle">視覺化監控 -> 匯出 HTML (含編號索引與 Hover 連動)</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -215,7 +212,7 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V17)", 320, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V18)", 320, 250);
 
         // --- 核心圖片與還原邏輯 ---
         imgInput.addEventListener('change', (e) => {
@@ -350,7 +347,7 @@
                 
                 item.innerHTML = `
                     <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold; display:flex; align-items:center;">
-                        ${dotHtml}${title}
+                        <span style="color:#999; font-size:0.8em; margin-right:5px;">${idx+1}.</span>${dotHtml}${title}
                     </div>
                     <div class="sk-actions">
                         <button class="sk-btn" onclick="event.stopPropagation(); editShape(${idx})">✏️</button>
@@ -504,33 +501,23 @@
         // --- V17 新增：下載 Excel (CSV) 功能 ---
         function downloadCSV() {
             if(shapes.length === 0) { alert("目前沒有資料可匯出！"); return; }
-
-            // 1. 準備 CSV 內容，加入 BOM 以防止中文亂碼
             let csvContent = "\uFEFF"; 
-            // 2. 表頭
             csvContent += '"ID","標題 (項目)","狀態標籤","狀態色碼","詳細內容 (備註)"\n';
 
-            // 3. 遍歷資料
             shapes.forEach((s, idx) => {
-                // 處理可能含有逗號或換行的內容，需用雙引號包覆，並將內部的雙引號轉義
                 const title = (s.title || "").replace(/"/g, '""');
                 const status = (s.statusText || "").replace(/"/g, '""');
                 const color = s.statusColor || "";
-                // 將 HTML <br> 轉回 Excel 可識別的換行 \n
                 let rawDesc = (s.desc || "").replace(/<br>/g, '\n');
-                // 移除 HTML tag (如 highlight) 只保留純文字，讓 Excel 乾淨一點
                 rawDesc = rawDesc.replace(/<[^>]+>/g, '');
                 const desc = rawDesc.replace(/"/g, '""');
-
                 csvContent += `"${idx+1}","${title}","${status}","${color}","${desc}"\n`;
             });
 
-            // 4. 下載
             const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
             const link = document.createElement("a");
             const url = URL.createObjectURL(blob);
             link.setAttribute("href", url);
-            
             let rawName = fileNameInput.value.trim();
             if(!rawName) rawName = "project_status";
             link.setAttribute("download", rawName + "_報表.csv");
@@ -541,45 +528,243 @@
             document.body.removeChild(link);
         }
 
+        // --- V18 升級版：加入視覺編號與雙向 Hover ---
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
             const restoreData = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             const safeNote = globalNote ? globalNote : "（此專案尚無筆記）";
             
-            let svgContent = ''; let listItems = '';
+            let svgContent = ''; 
+            let listItems = '';
+
             shapes.forEach((s, index) => {
                 const id = `region-${index}`;
+                const num = index + 1; // 編號從 1 開始
+
+                // 1. 計算中心點來放「編號球」
+                let cx, cy;
+                let shapeHtml = '';
+                
                 if(s.type === 'rect') {
-                    const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y);
-                    const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y);
-                    svgContent += `<rect id="svg-${id}" x="${x}" y="${y}" width="${w}" height="${h}" class="interactive-area" data-id="${id}" onclick="activateRegion('${id}')"></rect>`;
+                    const w = Math.abs(s.end.x - s.start.x);
+                    const h = Math.abs(s.end.y - s.start.y);
+                    const x = Math.min(s.start.x, s.end.x); 
+                    const y = Math.min(s.start.y, s.end.y);
+                    cx = x + w/2; 
+                    cy = y + h/2;
+                    shapeHtml = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`;
                 } else {
+                    // 多邊形計算簡單重心
+                    let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                    s.points.forEach(p => {
+                        minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
+                        minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y);
+                    });
+                    cx = (minX + maxX) / 2;
+                    cy = (minY + maxY) / 2;
                     const points = s.points.map(p => `${p.x},${p.y}`).join(' ');
-                    svgContent += `<polygon id="svg-${id}" points="${points}" class="interactive-area" data-id="${id}" onclick="activateRegion('${id}')"></polygon>`;
+                    shapeHtml = `<polygon points="${points}" />`;
                 }
 
+                // 2. 組合 SVG (群組化：形狀 + 編號球)
+                // onmouseover / onmouseout 實現滑鼠滑過即高亮
+                svgContent += `
+                    <g id="svg-${id}" class="interactive-group" 
+                       onclick="activateRegion('${id}')"
+                       onmouseenter="hoverRegion('${id}', true)" 
+                       onmouseleave="hoverRegion('${id}', false)">
+                        ${shapeHtml} <circle cx="${cx}" cy="${cy}" r="12" class="badge-bg" />
+                        <text x="${cx}" y="${cy}" dy="4" text-anchor="middle" class="badge-text">${num}</text>
+                    </g>
+                `;
+
+                // 3. 處理狀態標籤
                 let badgeHtml = '';
                 if(s.statusText) {
                     const bgColor = s.statusColor || '#6c757d';
                     badgeHtml = `<span class="status-badge" style="background-color:${bgColor}">${s.statusText}</span>`;
                 }
 
+                // 4. 生成列表項目 (加入 onmouseenter/leave)
                 listItems += `
-                    <div class="list-item" id="list-${id}" onclick="activateRegion('${id}')">
+                    <div class="list-item" id="list-${id}" 
+                         onclick="activateRegion('${id}')"
+                         onmouseenter="hoverRegion('${id}', true)" 
+                         onmouseleave="hoverRegion('${id}', false)">
                         <div class="item-title">
-                            <div style="display:flex; align-items:center; gap:8px;">${s.title} ${badgeHtml}</div>
+                            <div style="display:flex; align-items:center; gap:8px;">
+                                <span class="list-num">${num}.</span> ${s.title} ${badgeHtml}
+                            </div>
                         </div>
                         <div class="item-desc">${s.desc}</div>
                     </div>`;
             });
 
-            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>導覽</title><style>body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; } .layout-container { display: flex; width: 100%; height: 100%; } .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: flex-start; align-items: flex-start; border-right: 1px solid #333; scroll-behavior: smooth; } .stage { position: relative; margin: 0 auto; transform-origin: center top; box-shadow: 0 0 50px rgba(0,0,0,0.5); width: 100%; transition: width 0.3s ease; } img { display: block; width: 100%; height: auto; } .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; } .sidebar { flex: 1; min-width: 300px; max-width: 400px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; overflow: hidden; z-index: 20;} .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; } .header-title { font-size: 1.1em; font-weight: bold; color: #28a745; display: flex; align-items: center; gap: 8px;} .note-btn { background: #6610f2; color: white; border: none; padding: 5px 12px; border-radius: 15px; cursor: pointer; font-size: 0.85em; transition: 0.2s; box-shadow: 0 2px 5px rgba(0,0,0,0.2); } .note-btn:hover { background: #520dc2; transform: translateY(-1px); } .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; scroll-behavior: smooth; } .list-item { background: #383838; margin-bottom: 15px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; overflow: hidden; } .list-item:hover { background: #444; } .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); } .item-title { padding: 15px; font-weight: bold; font-size: 1.1em; display: flex; justify-content: space-between; align-items: center; } .item-title::after { content: '+'; color: #888; } .list-item.active .item-title::after { content: '−'; color: #fff; } .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); } .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; } .interactive-area { fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.3); stroke-width: 2; transition: all 0.2s; cursor: pointer; } .interactive-area:hover { stroke: #28a745; stroke-width: 3; fill: rgba(40,167,69,0.1); } .interactive-area.active { stroke: #28a745; stroke-width: 5; fill: rgba(40,167,69,0.25); animation: pulse 2s infinite; } @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } } .interactive-area.show-all { stroke: #17a2b8 !important; stroke-width: 2 !important; stroke-opacity: 0.8 !important; fill: rgba(23, 162, 184, 0.1) !important; } .interactive-area.active.show-all { stroke: #28a745 !important; stroke-width: 5 !important; fill: rgba(40,167,69,0.25) !important; } .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold; } .zoom-controls { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; position: fixed; } .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; } .zoom-btn:hover { background: #28a745; border-color: #28a745; } .zoom-btn.active { background: #17a2b8; border-color: #17a2b8; box-shadow: 0 0 10px rgba(23, 162, 184, 0.5); } .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.7); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } .note-card { background: #2b2b2b; color: #eee; width: 90%; max-width: 600px; max-height: 80vh; border-radius: 12px; padding: 0; display: flex; flex-direction: column; box-shadow: 0 20px 50px rgba(0,0,0,0.5); border: 1px solid #444; } .note-header { padding: 15px 20px; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; display: flex; justify-content: space-between; align-items: center; background: #333; border-radius: 12px 12px 0 0;} .note-close { cursor: pointer; color: #aaa; font-size: 1.5em; line-height: 1; } .note-close:hover { color: #fff; } .note-body { padding: 25px; overflow-y: auto; line-height: 1.8; font-size: 1.05em; white-space: pre-wrap; } .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; font-weight: normal; vertical-align: middle; box-shadow: 0 1px 3px rgba(0,0,0,0.3); } @media (max-width: 768px) { .layout-container { flex-direction: column; } .map-section { flex: 1; min-height: 40vh; } .sidebar { flex: 1; min-width: 100%; } } </style></head><body><div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage"><img src="${originalImageDataUrl}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="toggleAll(this)" title="顯示所有標示框">👁️ 全顯</button><div style="width:1px; background:#666; height:20px; margin: 0 5px;"></div><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div class="header-title">📝 區域說明導覽</div><button class="note-btn" onclick="toggleNote()">📋 閱讀筆記</button></div><div class="sidebar-content" id="sidebarList">${listItems}</div></div></div><div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div class="note-header"><span>📋 專案筆記 / 前情提要</span><span class="note-close" onclick="toggleNote()">&times;</span></div><div class="note-body">${safeNote}</div></div></div><script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script><script>const mapSection = document.getElementById('mapSection'); const stage = document.getElementById('stage'); let currentWidthPercent = 100; function updateZoom() { stage.style.width = currentWidthPercent + '%'; } function zoomIn() { currentWidthPercent += 20; updateZoom(); } function zoomOut() { if(currentWidthPercent > 40) currentWidthPercent -= 20; updateZoom(); } function setZoom(mode) { if(mode === 'fit') currentWidthPercent = 95; else currentWidthPercent = 100; updateZoom(); } let currentActiveId = null; function activateRegion(id) { if(currentActiveId) { document.getElementById('svg-' + currentActiveId)?.classList.remove('active'); document.getElementById('list-' + currentActiveId)?.classList.remove('active'); } if(currentActiveId === id) { currentActiveId = null; return; } currentActiveId = id; const svgEl = document.getElementById('svg-' + id); const listEl = document.getElementById('list-' + id); svgEl?.classList.add('active'); listEl?.classList.add('active'); listEl?.scrollIntoView({ behavior: 'smooth', block: 'center' }); svgEl?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' }); } function toggleAll(btn) { const allAreas = document.querySelectorAll('.interactive-area'); const isActive = btn.classList.toggle('active'); allAreas.forEach(area => { if(isActive) area.classList.add('show-all'); else area.classList.remove('show-all'); }); } function toggleNote() { const modal = document.getElementById('noteModal'); if(modal.style.display === 'flex') modal.style.display = 'none'; else modal.style.display = 'flex'; } document.querySelectorAll('.interactive-area').forEach(area => { area.addEventListener('click', (e) => { e.stopPropagation(); activateRegion(area.getAttribute('data-id')); }); }); mapSection.addEventListener('click', (e) => { if(e.target === mapSection || e.target === stage || e.target.tagName === 'IMG') { if(currentActiveId) { document.getElementById('svg-' + currentActiveId)?.classList.remove('active'); document.getElementById('list-' + currentActiveId)?.classList.remove('active'); currentActiveId = null; } } }); <\/script></body></html>`;
+            const htmlContent = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽 V18</title><style>
+                body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
+                .layout-container { display: flex; width: 100%; height: 100%; }
+                
+                /* --- 左側地圖區 --- */
+                .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
+                .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; }
+                img { display: block; max-width: 100%; }
+                .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+                
+                /* --- SVG 互動樣式 --- */
+                .interactive-group { cursor: pointer; pointer-events: auto; }
+                .interactive-group rect, .interactive-group polygon {
+                    fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s;
+                }
+                .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; }
+                .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
+
+                /* Hover 效果 */
+                .interactive-group:hover rect, .interactive-group:hover polygon,
+                .interactive-group.hovered rect, .interactive-group.hovered polygon {
+                    stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1);
+                }
+                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg {
+                    fill: #FFD700; stroke: #000;
+                }
+                .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text {
+                    fill: #000;
+                }
+
+                /* Active (點擊鎖定) 效果 */
+                .interactive-group.active rect, .interactive-group.active polygon {
+                    stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2);
+                    animation: pulse 2s infinite;
+                }
+                .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; }
+                .interactive-group.active .badge-text { fill: #fff; }
+                
+                @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
+
+                /* --- 右側列表區 --- */
+                .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
+                .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+                .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
+                
+                .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
+                .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; }
+                .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
+                
+                .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
+                .list-num { color: #888; margin-right: 5px; font-family: monospace; }
+                .list-item.active .list-num { color: #28a745; }
+                
+                .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
+                .list-item.active .item-desc { padding: 15px; max-height: 800px; opacity: 1; }
+
+                /* --- 其他元件 --- */
+                .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; }
+                .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
+                
+                .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; }
+                .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+                .zoom-btn:hover { background: #28a745; border-color: #28a745; }
+
+                .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); }
+                .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; }
+                .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
+            </style></head>
+            <body>
+                <div class="layout-container">
+                    <div class="map-section" id="mapSection">
+                        <div class="stage" id="stage" style="width: 95%;">
+                            <img src="${originalImageDataUrl}">
+                            <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgContent}</svg>
+                        </div>
+                        <div class="zoom-controls">
+                            <button class="zoom-btn" onclick="setZoom(100)">100%</button>
+                            <button class="zoom-btn" onclick="setZoom('fit')">Fit</button>
+                            <button class="zoom-btn" onclick="zoomIn()">+</button>
+                            <button class="zoom-btn" onclick="zoomOut()">-</button>
+                        </div>
+                    </div>
+                    <div class="sidebar">
+                        <div class="sidebar-header">
+                            <div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div>
+                            <button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button>
+                        </div>
+                        <div class="sidebar-content" id="sidebarList">${listItems}</div>
+                    </div>
+                </div>
+
+                <div class="note-modal" id="noteModal" onclick="toggleNote()">
+                    <div class="note-card" onclick="event.stopPropagation()">
+                        <div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div>
+                        <div class="note-body">${safeNote}</div>
+                    </div>
+                </div>
+                
+                <script id="restore-data" type="application/json">${JSON.stringify(restoreData)}<\/script>
+                <script>
+                    let currentZoom = 95;
+                    const stage = document.getElementById('stage');
+                    
+                    function updateZoom() { stage.style.width = currentZoom + '%'; }
+                    function zoomIn() { currentZoom += 10; updateZoom(); }
+                    function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); }
+                    function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); }
+
+                    // 核心互動邏輯
+                    let activeId = null;
+
+                    // 1. 點擊鎖定 (Click)
+                    function activateRegion(id) {
+                        // 如果點擊同一個，則關閉
+                        if(activeId === id) {
+                            deactivate();
+                            return;
+                        }
+                        // 切換新的
+                        if(activeId) deactivate();
+                        
+                        activeId = id;
+                        document.getElementById('svg-' + id)?.classList.add('active');
+                        const listItem = document.getElementById('list-' + id);
+                        listItem?.classList.add('active');
+                        
+                        // 捲動到列表位置
+                        listItem?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
+
+                    function deactivate() {
+                        if(!activeId) return;
+                        document.getElementById('svg-' + activeId)?.classList.remove('active');
+                        document.getElementById('list-' + activeId)?.classList.remove('active');
+                        activeId = null;
+                    }
+
+                    // 2. 滑鼠懸停預覽 (Hover)
+                    function hoverRegion(id, isEnter) {
+                        if(activeId === id) return; // 如果已經被點擊鎖定，就不處理 hover
+
+                        const svgEl = document.getElementById('svg-' + id);
+                        const listEl = document.getElementById('list-' + id);
+                        
+                        if(isEnter) {
+                            svgEl?.classList.add('hovered');
+                            listEl?.classList.add('hovered');
+                        } else {
+                            svgEl?.classList.remove('hovered');
+                            listEl?.classList.remove('hovered');
+                        }
+                    }
+
+                    function toggleNote() {
+                        const m = document.getElementById('noteModal');
+                        m.style.display = (m.style.display === 'flex') ? 'none' : 'flex';
+                    }
+                <\/script>
+            </body></html>`;
 
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             let rawName = fileNameInput.value.trim();
-            if(!rawName) rawName = "dashboard_v17";
+            if(!rawName) rawName = "dashboard_v18";
             link.download = rawName + ".html";
             link.click();
         }
