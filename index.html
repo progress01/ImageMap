@@ -3,20 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V7 (自動導航版)</title>
+    <title>Image Map 生成器 V8 (可還原編輯版)</title>
     <style>
-        /* --- 編輯器介面樣式 (保持不變) --- */
+        /* --- 編輯器介面樣式 --- */
         body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
         h1 { color: #333; margin-bottom: 5px; }
         .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+        
+        .main-controls { display: flex; gap: 15px; margin-bottom: 15px; width: 100%; justify-content: center; }
+        .file-group { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
+
         .toolbar { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; }
-        button { padding: 8px 18px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; }
+        
+        button { padding: 8px 18px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
         button:hover { background: #f0f0f0; transform: translateY(-1px); }
         button.active { background: #007bff; color: white; border-color: #007bff; box-shadow: 0 2px 5px rgba(0,123,255,0.3); }
         button.primary { background: #28a745; color: white; border-color: #28a745; box-shadow: 0 4px 10px rgba(40,167,69,0.3); }
         button.danger { color: #dc3545; border-color: #dc3545; }
+        button.info { color: #17a2b8; border-color: #17a2b8; }
+
         #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; overflow: hidden; background: #ddd; min-width: 600px; min-height: 400px; }
         canvas { display: block; cursor: crosshair; }
+
+        input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
+        input[type="text"].filename-input:focus { border-color: #28a745; }
 
         /* --- 編輯面板 --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
@@ -38,18 +48,31 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V7</h1>
-    <div class="subtitle">長截圖自動導航・點擊自動捲動定位</div>
+    <h1>Image Map 生成器 V8</h1>
+    <div class="subtitle">長截圖自動導航・可自定義檔名・可還原修改</div>
+
+    <div class="main-controls">
+        <div class="file-group">
+            <span style="font-size:0.9em; color:#666;">步驟 1: 新增或還原</span>
+            <button onclick="document.getElementById('imgInput').click()">🖼️ 上傳新圖片</button>
+            <input type="file" id="imgInput" accept="image/*" style="display:none">
+            <div style="border-left:1px solid #ddd; height:20px;"></div>
+            <button class="info" onclick="document.getElementById('importInput').click()">📂 匯入舊檔繼續編輯</button>
+            <input type="file" id="importInput" accept=".html" style="display:none">
+        </div>
+    </div>
 
     <div class="toolbar">
-        <input type="file" id="imgInput" accept="image/*">
-        <div style="border-left:1px solid #ddd; height:20px;"></div>
+        <span style="font-size:0.9em; color:#666;">步驟 2: 繪製</span>
         <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
         <button id="btnPoly" onclick="setTool('poly')">畫多邊形 (點兩下結束)</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         <button onclick="undo()">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
+        
+        <span style="font-size:0.9em; color:#666;">步驟 3: 下載</span>
+        <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱 (免填副檔名)">
         <button class="primary" onclick="downloadPresentation()">📥 下載自動導航 HTML</button>
     </div>
 
@@ -85,9 +108,11 @@
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
         const imgInput = document.getElementById('imgInput');
+        const importInput = document.getElementById('importInput');
         const modal = document.getElementById('editorModal');
         const inputTitle = document.getElementById('inputTitle');
         const inputDesc = document.getElementById('inputDesc');
+        const fileNameInput = document.getElementById('fileNameInput');
 
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
@@ -95,22 +120,59 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請先上傳圖片", 340, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 或 匯入舊檔", 300, 250);
 
+        // --- 1. 圖片上傳邏輯 ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
             reader.onload = (event) => {
-                originalImageDataUrl = event.target.result;
-                image.onload = () => {
-                    canvas.width = image.width; canvas.height = image.height;
-                    shapes = []; currentShape = null; redraw();
-                };
-                image.src = event.target.result;
+                loadImage(event.target.result);
+                shapes = []; // 新圖片清空舊資料
+                fileNameInput.value = file.name.split('.')[0]; // 自動帶入檔名
             };
             reader.readAsDataURL(file);
         });
 
+        // --- 2. 舊檔匯入邏輯 (新增功能) ---
+        importInput.addEventListener('change', (e) => {
+            const file = e.target.files[0]; if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                const htmlContent = event.target.result;
+                const parser = new DOMParser();
+                const doc = parser.parseFromString(htmlContent, 'text/html');
+                
+                // 尋找隱藏的還原數據
+                const restoreScript = doc.getElementById('restore-data');
+                if (restoreScript) {
+                    try {
+                        const data = JSON.parse(restoreScript.textContent);
+                        shapes = data.shapes;
+                        loadImage(data.imgData); // 重新載入圖片
+                        fileNameInput.value = file.name.split('.')[0]; // 帶入舊檔名
+                        alert("專案已成功還原！您可以繼續編輯。");
+                    } catch (err) {
+                        alert("還原失敗：數據格式錯誤。");
+                    }
+                } else {
+                    alert("無法還原：此檔案可能不是由此版本產生，或已損壞。");
+                }
+            };
+            reader.readAsText(file);
+            importInput.value = ''; // 重置 input 讓同個檔案可以再選
+        });
+
+        function loadImage(src) {
+            originalImageDataUrl = src;
+            image.onload = () => {
+                canvas.width = image.width; canvas.height = image.height;
+                redraw();
+            };
+            image.src = src;
+        }
+
+        // --- 繪圖工具邏輯 (保持不變) ---
         function setTool(t) {
             tool = t;
             document.getElementById('btnRect').classList.toggle('active', t === 'rect');
@@ -238,6 +300,12 @@
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製！"); return; }
 
+            // 準備還原數據 (重要功能：儲存專案狀態)
+            const restoreData = {
+                imgData: originalImageDataUrl,
+                shapes: shapes
+            };
+
             let svgContent = '';
             let listItems = '';
 
@@ -274,28 +342,25 @@
         body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
         .layout-container { display: flex; width: 100%; height: 100%; }
         
-        /* 左側：地圖區 (重點修改：overflow: auto 讓長圖可以捲動) */
         .map-section { 
             flex: 3; position: relative; background: #222; 
-            overflow: auto; /* 允許卷軸 */
-            display: flex; justify-content: flex-start; align-items: flex-start; /* 靠左上對齊 */
+            overflow: auto;
+            display: flex; justify-content: flex-start; align-items: flex-start;
             border-right: 1px solid #333; 
-            scroll-behavior: smooth; /* 平滑捲動 */
+            scroll-behavior: smooth;
         }
         
-        /* 圖片容器 */
         .stage { 
             position: relative; margin: 0 auto;
             transform-origin: center top; 
             box-shadow: 0 0 50px rgba(0,0,0,0.5); 
-            width: 100%; /* 預設撐滿容器寬度，讓長圖自然向下延伸 */
+            width: 100%;
             transition: width 0.3s ease;
         }
         
         img { display: block; width: 100%; height: auto; }
         .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
 
-        /* 右側：側邊欄 */
         .sidebar { flex: 1; min-width: 300px; max-width: 400px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; overflow: hidden; z-index: 20;}
         .sidebar-header { padding: 20px; background: #333; border-bottom: 1px solid #444; font-size: 1.2em; font-weight: bold; color: #28a745; }
         .sidebar-content { flex: 1; overflow-y: auto; padding: 10px; scroll-behavior: smooth; }
@@ -311,14 +376,22 @@
 
         .interactive-area { fill: rgba(255,255,255,0); stroke: rgba(255,255,255,0.3); stroke-width: 2; transition: all 0.2s; cursor: pointer; }
         .interactive-area:hover { stroke: #28a745; stroke-width: 3; fill: rgba(40,167,69,0.1); }
+        
+        /* 點選激活狀態 */
         .interactive-area.active { stroke: #28a745; stroke-width: 5; fill: rgba(40,167,69,0.25); animation: pulse 2s infinite; }
         @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
+
+        /* 全顯模式狀態 (新功能 CSS) */
+        .interactive-area.show-all { stroke: #17a2b8 !important; stroke-width: 2 !important; stroke-opacity: 0.8 !important; fill: rgba(23, 162, 184, 0.1) !important; }
+        /* 避免與激活狀態衝突，激活狀態優先 */
+        .interactive-area.active.show-all { stroke: #28a745 !important; stroke-width: 5 !important; fill: rgba(40,167,69,0.25) !important; }
+
         .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; font-weight: bold; }
 
-        /* 縮放工具列 */
         .zoom-controls { position: absolute; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; position: fixed; }
-        .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+        .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; font-size: 14px; display: flex; align-items: center; justify-content: center; }
         .zoom-btn:hover { background: #28a745; border-color: #28a745; }
+        .zoom-btn.active { background: #17a2b8; border-color: #17a2b8; box-shadow: 0 0 10px rgba(23, 162, 184, 0.5); }
 
         @media (max-width: 768px) {
             .layout-container { flex-direction: column; }
@@ -338,6 +411,8 @@
             </div>
             
             <div class="zoom-controls">
+                <button class="zoom-btn" onclick="toggleAll(this)" title="顯示所有標示框">👁️ 全顯</button>
+                <div style="width:1px; background:#666; height:20px; margin: 0 5px;"></div>
                 <button class="zoom-btn" onclick="setZoom(100)">100%</button>
                 <button class="zoom-btn" onclick="setZoom('fit')">Fit</button>
                 <button class="zoom-btn" onclick="zoomIn()">+</button>
@@ -355,10 +430,14 @@
         </div>
     </div>
 
+    <script id="restore-data" type="application/json">
+        ${JSON.stringify(restoreData)}
+    <\/script>
+
     <script>
         const mapSection = document.getElementById('mapSection');
         const stage = document.getElementById('stage');
-        let currentWidthPercent = 100; // 預設 100% 寬度，適合長圖
+        let currentWidthPercent = 100;
 
         function updateZoom() {
             stage.style.width = currentWidthPercent + '%';
@@ -366,7 +445,7 @@
         function zoomIn() { currentWidthPercent += 20; updateZoom(); }
         function zoomOut() { if(currentWidthPercent > 40) currentWidthPercent -= 20; updateZoom(); }
         function setZoom(mode) {
-            if(mode === 'fit') currentWidthPercent = 95; // 略小於 100 確保邊界
+            if(mode === 'fit') currentWidthPercent = 95; 
             else currentWidthPercent = 100;
             updateZoom();
         }
@@ -374,19 +453,16 @@
         let currentActiveId = null;
 
         function activateRegion(id) {
-            // 1. 清除舊狀態
             if(currentActiveId) {
                 document.getElementById('svg-' + currentActiveId)?.classList.remove('active');
                 document.getElementById('list-' + currentActiveId)?.classList.remove('active');
             }
             
-            // 2. 處理切換 (如果是同一個就關閉)
             if(currentActiveId === id) {
                 currentActiveId = null;
                 return;
             }
 
-            // 3. 激活新狀態
             currentActiveId = id;
             const svgEl = document.getElementById('svg-' + id);
             const listEl = document.getElementById('list-' + id);
@@ -394,15 +470,20 @@
             svgEl?.classList.add('active');
             listEl?.classList.add('active');
             listEl?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-
-            // --- 核心改動：自動捲動到圖片對應位置 (Jump to Region) ---
-            if(svgEl) {
-                // 使用 scrollIntoView 讓 SVG 元素自動進入視野中心
-                svgEl.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
-            }
+            svgEl?.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
         }
 
-        // 綁定 SVG 點擊
+        // 新增功能：全顯開關
+        function toggleAll(btn) {
+            const allAreas = document.querySelectorAll('.interactive-area');
+            const isActive = btn.classList.toggle('active');
+            
+            allAreas.forEach(area => {
+                if(isActive) area.classList.add('show-all');
+                else area.classList.remove('show-all');
+            });
+        }
+
         document.querySelectorAll('.interactive-area').forEach(area => {
             area.addEventListener('click', (e) => {
                 e.stopPropagation();
@@ -410,7 +491,6 @@
             });
         });
 
-        // 點擊空白處
         mapSection.addEventListener('click', (e) => {
             if(e.target === mapSection || e.target === stage || e.target.tagName === 'IMG') {
                  if(currentActiveId) {
@@ -428,7 +508,12 @@
             const blob = new Blob([htmlContent], { type: "text/html" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
-            link.download = "dashboard_v7_autoscroll.html";
+            
+            // 使用自定義檔名或預設檔名
+            let rawName = fileNameInput.value.trim();
+            if(!rawName) rawName = "dashboard_v8";
+            link.download = rawName + ".html";
+            
             link.click();
         }
     </script>
