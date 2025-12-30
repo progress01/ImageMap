@@ -97,7 +97,7 @@
 <body>
 
     <h1>Image Map 生成器</h1>
-    <div class="subtitle">修復匯出 Bug、精準多邊形偵測、邊界修正、快捷鍵</div>
+    <div class="subtitle">支援文件審閱、Excel 無警告、智慧標籤切換</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -119,7 +119,7 @@
         
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
-        <button onclick="undo()">復原</button>
+        <button onclick="undo()" title="快捷鍵 Ctrl+Z">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         
@@ -255,34 +255,29 @@
         let tagPresets = []; 
         let tempRefImgBase64 = "";
         
-        // V29: 標籤顯示狀態
         let showFullLabels = false; 
-        // V29: 滑鼠位置用於 Hover 偵測
         let lastMousePos = { x: 0, y: 0 };
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V30 穩定版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V30 Final)", 300, 250);
         loadPresets();
 
-        /* V30 FIX: 鍵盤快捷鍵支援 */
+        // 鍵盤監聽: 刪除, ESC, Ctrl+Z
         document.addEventListener('keydown', (e) => {
             if (modal.classList.contains('show') || tagManagerModal.classList.contains('show')) return;
-            if (e.target.tagName === 'INPUT') return;
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
 
             if (e.key === 'Delete' && focusedShapeIndex !== -1) {
                 deleteShape(focusedShapeIndex);
             }
             if (e.key === 'Escape') {
-                if (isDrawing) {
-                    isDrawing = false;
-                    currentShape = null;
-                    redraw();
-                } else if (focusedShapeIndex !== -1) {
-                    focusedShapeIndex = -1;
-                    renderSidekick();
-                    redraw();
-                }
+                if (isDrawing) { isDrawing = false; currentShape = null; redraw(); } 
+                else if (focusedShapeIndex !== -1) { focusedShapeIndex = -1; renderSidekick(); redraw(); }
+            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+                e.preventDefault();
+                undo();
             }
         });
 
@@ -358,13 +353,11 @@
         canvas.addEventListener('mousemove', (e) => { 
             if (!image.src) return; 
             const pos = getPos(e); 
-            lastMousePos = pos; // 紀錄滑鼠位置供 Hover 判斷
+            lastMousePos = pos; 
             
             if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } 
             else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } 
-            else if (!isDrawing) {
-                redraw();
-            }
+            else if (!isDrawing) { redraw(); }
         });
         
         canvas.addEventListener('mouseup', (e) => { if (tool === 'rect' && isDrawing) { isDrawing = false; if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape, -1); currentShape = null; redraw(); } });
@@ -447,7 +440,6 @@
             redraw();
         }
 
-        /* V30 FIX: 射線法判斷多邊形內部 (Point in Polygon) */
         function isPointInPolygon(p, points) {
             let inside = false;
             for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
@@ -471,7 +463,6 @@
 
         function redraw() {
             ctx.clearRect(0,0,canvas.width,canvas.height); if(image.src) ctx.drawImage(image,0,0); ctx.fillStyle="rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            // 為了讓 Hover 的項目顯示在最上層，這裡可以先繪製非 Hover 的，再繪製 Hover 的 (選擇性優化)
             shapes.forEach((s,i)=>{
                 const isHover = isMouseOverShape(s, lastMousePos);
                 drawShape(s, true, i===focusedShapeIndex, i, isHover);
@@ -487,14 +478,12 @@
                 ctx.strokeStyle=act?"#FFD700":"#fff"; ctx.lineWidth=act?4:2; ctx.fillStyle=act?"rgba(255,215,0,0.3)":"rgba(255,255,255,0.05)"; ctx.fill(); ctx.stroke();
 
                 const origin = getShapeOrigin(s);
-                const bx = origin.x; 
-                /* V30 FIX: 邊界檢查，若太靠上則顯示在框框內 */
                 let by = origin.y - 10; 
                 if (by < 15) { by = origin.y + 25; } 
 
                 const shouldShowLabel = showFullLabels || isHover || act;
+                const bx = origin.x; 
 
-                // 1. 編號球
                 ctx.beginPath(); 
                 ctx.arc(bx, by, 12, 0, Math.PI*2); 
                 ctx.fillStyle = "#333"; ctx.fill(); 
@@ -502,7 +491,6 @@
                 ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; 
                 ctx.fillText(idx+1, bx, by+4);
 
-                // 2. 標籤
                 if (shouldShowLabel) {
                     ctx.font="14px sans-serif"; 
                     const tm=ctx.measureText(s.title); 
@@ -637,14 +625,12 @@
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製"); return; }
             const rd = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             
-            /* V30 FIX: 修正 safeNote 未定義的問題 */
             const safeNote = globalNote ? globalNote.replace(/\n/g, '<br>') : "無專案筆記";
 
             let svgC = ''; let listHtml = '';
             
             const pS = shapes.map((s, idx) => { 
                 const origin = getShapeOrigin(s); 
-                /* V30 FIX: HTML 匯出也同步邊界檢查 */
                 let by = origin.y - 10;
                 if(by < 15) by = origin.y + 25;
                 return { ...s, bx: origin.x, by: by, id: idx + 1 }; 
@@ -704,6 +690,7 @@
                 .list-item.active:not(.title-only) .item-title::after { content: '−'; color: #fff; }
                 .list-item.title-only { padding: 5px 0; background: #333; border: 1px solid #444; }
                 .list-item.title-only:hover { background: #3a3a3a; }
+                .list-item.title-only .item-title { padding: 8px 15px; font-size: 1em; color: #ddd; }
                 .list-num { color: #888; margin-right: 5px; font-family: monospace; } .list-item.active .list-num { color: #28a745; }
                 .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
                 .list-item.active .item-desc { padding: 15px; max-height: 1500px; opacity: 1; }
@@ -727,7 +714,20 @@
                     if(item){ item.classList.add('active'); item.scrollIntoView({behavior:'smooth',block:'center'}); }
                 }
                 function deactivate(){ if(!activeId)return; document.getElementById('svg-'+activeId)?.classList.remove('active'); document.getElementById('list-'+activeId)?.classList.remove('active'); activeId=null; }
-                function hoverRegion(id,en){ if(activeId===id)return; const s=document.getElementById('svg-'+id); const l=document.getElementById('list-'+id); if(en){s?.classList.add('hovered');l?.classList.add('hovered');}else{s?.classList.remove('hovered');l?.classList.remove('hovered');} }
+                function hoverRegion(id,en){ 
+                    if(activeId===id)return; 
+                    const s=document.getElementById('svg-'+id); 
+                    const l=document.getElementById('list-'+id); 
+                    if(en){
+                        s?.classList.add('hovered');
+                        l?.classList.add('hovered');
+                        // V30: 將 hover 的元素移到最上層，避免被遮擋
+                        if(s) s.parentNode.appendChild(s);
+                    }else{
+                        s?.classList.remove('hovered');
+                        l?.classList.remove('hovered');
+                    } 
+                }
                 function toggleNote(){ const m=document.getElementById('noteModal'); m.style.display=(m.style.display==='flex')?'none':'flex'; }
             <\/script></body></html>`;
 
