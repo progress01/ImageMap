@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V28 (完全展開旗艦版)</title>
+    <title>Image Map 生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 --- */
@@ -27,6 +27,8 @@
         button.note { color: #6610f2; border-color: #6610f2; }
         button.magic { background: #6f42c1; color: white; border-color: #6f42c1; }
         button.settings { background: #343a40; color: white; border-color: #343a40; }
+        /* V29: 切換顯示按鈕 */
+        button.toggle-view { background: #17a2b8; color: white; border-color: #17a2b8; }
 
         /* --- 3. 畫布區域 --- */
         #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; background: #ddd; min-width: 600px; min-height: 400px; margin-bottom: 50px; }
@@ -47,7 +49,7 @@
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 
-        /* --- 5. 標籤管理與系統維護 Modal --- */
+        /* --- 5. 標籤管理 Modal --- */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -82,7 +84,6 @@
         .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .tips { font-size: 0.8em; color: #888; margin-left: auto; }
         
-        /* 參考圖樣式 (Ref Image) */
         .ref-img-zone { border: 2px dashed #ddd; border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
         .ref-img-zone:hover { border-color: #007bff; background: #f0f7ff; }
         .ref-img-preview { max-width: 100%; max-height: 150px; border-radius: 4px; margin-top: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
@@ -96,8 +97,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V28</h1>
-    <div class="subtitle">旗艦完全版：雙欄 Excel / 參考圖支援 / 智慧導覽 / 代碼完全展開</div>
+    <h1>Image Map</h1>
+    <div class="subtitle">左上角標籤懸掛 + 顯示開關 (解決文字遮擋問題)</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -115,8 +116,10 @@
         <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
         <button id="btnPoly" onclick="setTool('poly')">畫多邊形</button>
         <button class="settings" onclick="openTagManager()">⚙️ 設定標籤</button>
-        <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
+        <button id="btnToggleLabel" class="toggle-view" onclick="toggleLabels()">👁️ 顯示完整標籤</button>
+        
         <div style="border-left:1px solid #ddd; height:20px;"></div>
+        <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
         <button onclick="undo()">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
@@ -144,12 +147,10 @@
     <div class="editor-modal" id="editorModal">
         <div class="editor-card">
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
-            
             <div id="titleGroup">
                 <label>標題</label>
                 <input type="text" id="inputTitle" placeholder="例如：首頁 Banner (必填)">
             </div>
-
             <div id="statusGroup">
                 <label>標籤</label>
                 <div class="quick-tags" id="quickTagsArea"></div>
@@ -163,7 +164,6 @@
                 </div>
                 <input type="hidden" id="inputStatusColor" value="">
             </div>
-
             <div>
                 <label>詳細內容 (文字說明)</label>
                 <div class="textarea-container">
@@ -174,7 +174,6 @@
                     <textarea id="inputDesc" placeholder="請輸入問題描述或需求說明..."></textarea>
                 </div>
             </div>
-
             <div id="refImgGroup">
                 <label>參考圖片 (Mockup / 對照圖)</label>
                 <div class="ref-img-zone" onclick="document.getElementById('inputRefImg').click()">
@@ -188,7 +187,6 @@
                     </div>
                 </div>
             </div>
-
             <div class="modal-footer">
                 <div id="duplicateBtnGroup">
                     <button class="duplicate" type="button" onclick="duplicateShape()">📋 原地複製</button>
@@ -220,13 +218,12 @@
     </div>
 
     <script>
-        // --- 初始化全域變數 ---
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
         const imgInput = document.getElementById('imgInput');
         const importInput = document.getElementById('importInput');
         
-        // UI 元件
+        // UI
         const modal = document.getElementById('editorModal');
         const tagManagerModal = document.getElementById('tagManagerModal');
         const inputTitle = document.getElementById('inputTitle');
@@ -244,14 +241,13 @@
         const newTagName = document.getElementById('newTagName');
         const newTagColor = document.getElementById('newTagColor');
         const presetList = document.getElementById('presetList');
+        const btnToggleLabel = document.getElementById('btnToggleLabel');
         
-        // 參考圖 UI 元件
         const refImgGroup = document.getElementById('refImgGroup');
         const refImgPreview = document.getElementById('refImgPreview');
         const refImgPreviewContainer = document.getElementById('refImgPreviewContainer');
         const refImgPlaceholder = document.getElementById('refImgPlaceholder');
 
-        // 資料變數
         let focusedShapeIndex = -1;
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
@@ -259,14 +255,18 @@
         let globalNote = ""; let isEditingNote = false; let editingShapeIndex = -1;
         let tagPresets = []; 
         let tempRefImgBase64 = "";
+        
+        // V29: 標籤顯示狀態 (預設為 false: 簡潔模式)
+        let showFullLabels = false; 
+        // V29: 滑鼠位置用於 Hover 偵測
+        let lastMousePos = { x: 0, y: 0 };
 
-        // 初始化畫布
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V28 完全版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V29 審閱優化版)", 300, 250);
         loadPresets();
 
-        // --- 檔案讀取與還原 ---
+        // --- File I/O ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
@@ -289,7 +289,7 @@
                         renderSidekick();
                         alert("專案已還原！");
                     }
-                } catch(e) { alert("讀取失敗，格式可能不符"); }
+                } catch(e) { alert("讀取失敗"); }
             };
             reader.readAsText(file);
             importInput.value = '';
@@ -301,7 +301,7 @@
             image.src = src;
         }
 
-        // --- 標籤管理系統 ---
+        // --- Tag Manager ---
         function loadPresets() {
             const saved = localStorage.getItem('imgMapPresets_v25');
             if(saved) { tagPresets = JSON.parse(saved); } else { tagPresets = [ { name: '嚴重 Bug', color: '#dc3545' }, { name: '功能優化', color: '#ffc107' }, { name: '已完成', color: '#28a745' } ]; }
@@ -322,11 +322,32 @@
         function addPresetTag() { const name = newTagName.value.trim(); const color = newTagColor.value; if(!name) return; tagPresets.push({ name, color }); savePresets(); newTagName.value = ''; renderPresetList(); openTagManager(); }
         function deletePreset(idx) { if(confirm("刪除此標籤？")) { tagPresets.splice(idx, 1); savePresets(); renderPresetList(); openTagManager(); } }
 
-        // --- 繪圖核心邏輯 ---
+        // --- Drawing Logic ---
         function setTool(t) { tool = t; document.getElementById('btnRect').classList.toggle('active', t === 'rect'); document.getElementById('btnPoly').classList.toggle('active', t === 'poly'); currentShape = null; redraw(); }
         function getPos(e) { const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; }
-        canvas.addEventListener('mousedown', (e) => { if (!image.src) return; if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } const pos = getPos(e); if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } redraw(); });
-        canvas.addEventListener('mousemove', (e) => { if (!image.src) return; const pos = getPos(e); if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } });
+        
+        canvas.addEventListener('mousedown', (e) => { 
+            if (!image.src) return; 
+            if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } 
+            const pos = getPos(e); 
+            if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } 
+            else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } 
+            redraw(); 
+        });
+        
+        canvas.addEventListener('mousemove', (e) => { 
+            if (!image.src) return; 
+            const pos = getPos(e); 
+            lastMousePos = pos; // 紀錄滑鼠位置供 Hover 判斷
+            
+            if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } 
+            else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } 
+            else if (!isDrawing) {
+                // V29: 實時重繪以支援 Hover 效果
+                redraw();
+            }
+        });
+        
         canvas.addEventListener('mouseup', (e) => { if (tool === 'rect' && isDrawing) { isDrawing = false; if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape, -1); currentShape = null; redraw(); } });
         canvas.addEventListener('dblclick', (e) => { if (tool === 'poly' && currentShape && currentShape.points.length > 2) { openEditor(currentShape, -1); currentShape = null; redraw(); } });
         function selectColor(color) { inputStatusColor.value = color; document.querySelectorAll('.color-opt').forEach(el => { el.classList.toggle('selected', el.getAttribute('style').includes(color)); }); }
@@ -342,7 +363,6 @@
             });
         }
 
-        // --- 圖片處理 (壓縮與快取) ---
         function handleRefImg(input) {
             if (input.files && input.files[0]) {
                 const file = input.files[0];
@@ -350,19 +370,12 @@
                 reader.onload = function(e) {
                     const img = new Image();
                     img.onload = function() {
-                        // 壓縮邏輯：最大寬度 800px
                         const maxW = 800;
                         const scale = img.width > maxW ? maxW / img.width : 1;
-                        const c = document.createElement('canvas');
-                        c.width = img.width * scale;
-                        c.height = img.height * scale;
-                        const ctx = c.getContext('2d');
-                        ctx.drawImage(img, 0, 0, c.width, c.height);
+                        const c = document.createElement('canvas'); c.width = img.width * scale; c.height = img.height * scale;
+                        const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
                         tempRefImgBase64 = c.toDataURL('image/jpeg', 0.8);
-                        
-                        refImgPreview.src = tempRefImgBase64;
-                        refImgPreviewContainer.classList.remove('hidden');
-                        refImgPlaceholder.classList.add('hidden');
+                        refImgPreview.src = tempRefImgBase64; refImgPreviewContainer.classList.remove('hidden'); refImgPlaceholder.classList.add('hidden');
                     };
                     img.src = e.target.result;
                 };
@@ -370,15 +383,8 @@
             }
         }
 
-        function removeRefImg() {
-            tempRefImgBase64 = "";
-            document.getElementById('inputRefImg').value = ""; 
-            refImgPreview.src = "";
-            refImgPreviewContainer.classList.add('hidden');
-            refImgPlaceholder.classList.remove('hidden');
-        }
+        function removeRefImg() { tempRefImgBase64 = ""; document.getElementById('inputRefImg').value = ""; refImgPreview.src = ""; refImgPreviewContainer.classList.add('hidden'); refImgPlaceholder.classList.remove('hidden'); }
 
-        // --- 工具功能 ---
         function generateLegendToNote() {
             const uniqueTags = new Map();
             shapes.forEach(s => { if(s.statusText && s.statusColor) { const key = s.statusText + "|" + s.statusColor; uniqueTags.set(key, { text: s.statusText, color: s.statusColor }); } });
@@ -403,26 +409,106 @@
             });
         }
         function focusShape(idx) { focusedShapeIndex = idx; renderSidekick(); redraw(); const c = getShapeCenter(shapes[idx]); const r = canvas.getBoundingClientRect(); window.scrollTo({ top: (window.scrollY + r.top + c.y) - (window.innerHeight/2), left: (window.scrollX + r.left + c.x) - (window.innerWidth/2), behavior: 'smooth' }); }
-        function getShapeCenter(s) { if(s.type==='rect') return {x:(s.start.x+s.end.x)/2, y:(s.start.y+s.end.y)/2}; let mx=Infinity, Mx=-Infinity, my=Infinity, My=-Infinity; s.points.forEach(p=>{mx=Math.min(mx,p.x);Mx=Math.max(Mx,p.x);my=Math.min(my,p.y);My=Math.max(My,p.y);}); return {x:(mx+Mx)/2, y:(my+My)/2}; }
-        function getBadgeOffset(idx) { const tc = getShapeCenter(shapes[idx]); let c=0; for(let i=0; i<idx; i++){ const oc = getShapeCenter(shapes[i]); if(Math.sqrt(Math.pow(tc.x-oc.x,2)+Math.pow(tc.y-oc.y,2)) < 20) c++; } return {x:c*26, y:0}; }
         
+        // V29: 新的中心點與 Offset 邏輯 (改為左上角)
+        function getShapeOrigin(s) { 
+            if(s.type==='rect') return {x: Math.min(s.start.x, s.end.x), y: Math.min(s.start.y, s.end.y)}; 
+            let minX=Infinity, minY=Infinity; 
+            s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); }); 
+            return {x:minX, y:minY}; 
+        }
+        
+        function getShapeCenter(s) { 
+            if(s.type==='rect') return {x:(s.start.x+s.end.x)/2, y:(s.start.y+s.end.y)/2}; 
+            let mx=Infinity, Mx=-Infinity, my=Infinity, My=-Infinity; s.points.forEach(p=>{mx=Math.min(mx,p.x);Mx=Math.max(Mx,p.x);my=Math.min(my,p.y);My=Math.max(My,p.y);}); return {x:(mx+Mx)/2, y:(my+My)/2}; 
+        }
+
+        // V29: 切換標籤顯示模式
+        function toggleLabels() {
+            showFullLabels = !showFullLabels;
+            btnToggleLabel.innerText = showFullLabels ? "👁️ 隱藏部分標籤" : "👁️ 顯示完整標籤";
+            redraw();
+        }
+
+        // V29: 判斷滑鼠是否在形狀內 (簡單版)
+        function isMouseOverShape(s, mPos) {
+            // 簡單的 AABB 檢測
+            let minX, maxX, minY, maxY;
+            if(s.type === 'rect') {
+                minX = Math.min(s.start.x, s.end.x); maxX = Math.max(s.start.x, s.end.x);
+                minY = Math.min(s.start.y, s.end.y); maxY = Math.max(s.start.y, s.end.y);
+            } else {
+                minX = Infinity; maxX = -Infinity; minY = Infinity; maxY = -Infinity;
+                s.points.forEach(p => { minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x); minY = Math.min(minY, p.y); maxY = Math.max(maxY, p.y); });
+            }
+            return (mPos.x >= minX && mPos.x <= maxX && mPos.y >= minY && mPos.y <= maxY);
+        }
+
         function redraw() {
             ctx.clearRect(0,0,canvas.width,canvas.height); if(image.src) ctx.drawImage(image,0,0); ctx.fillStyle="rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
-            shapes.forEach((s,i)=>{drawShape(s,true,i===focusedShapeIndex,i);});
+            shapes.forEach((s,i)=>{
+                // V29: 判斷是否 Hover
+                const isHover = isMouseOverShape(s, lastMousePos);
+                drawShape(s, true, i===focusedShapeIndex, i, isHover);
+            });
             if(currentShape && tool==='rect') drawShape(currentShape,false);
             if(currentShape && tool==='poly') { ctx.beginPath(); ctx.moveTo(currentShape.points[0].x,currentShape.points[0].y); for(let p of currentShape.points) ctx.lineTo(p.x,p.y); ctx.strokeStyle='#ff0055'; ctx.lineWidth=2; ctx.stroke(); }
         }
-        function drawShape(s,conf,act,idx=-1) {
+
+        // V29: 繪圖邏輯大改 (標籤位置與顯示控制)
+        function drawShape(s, conf, act, idx=-1, isHover=false) {
             ctx.beginPath(); if(s.type==='rect'){const w=s.end.x-s.start.x,h=s.end.y-s.start.y; ctx.rect(s.start.x,s.start.y,w,h);}else{ctx.moveTo(s.points[0].x,s.points[0].y);for(let p of s.points)ctx.lineTo(p.x,p.y);ctx.closePath();}
+            
             if(conf){
                 ctx.strokeStyle=act?"#FFD700":"#fff"; ctx.lineWidth=act?4:2; ctx.fillStyle=act?"rgba(255,215,0,0.3)":"rgba(255,255,255,0.05)"; ctx.fill(); ctx.stroke();
-                const c=getShapeCenter(s); const off=idx!==-1?getBadgeOffset(idx):{x:0,y:0}; const bx=c.x+off.x, by=c.y+off.y;
-                ctx.font="14px sans-serif"; const tm=ctx.measureText(s.title); const hasS=!!s.statusColor; const pd=hasS?25:12; const bw=tm.width+pd;
-                ctx.fillStyle=act?"#faad14":"#28a745"; ctx.beginPath(); ctx.roundRect(bx,by-26,bw,24,4); ctx.fill();
-                ctx.fillStyle=act?"#000":"#white"; ctx.fillText(s.title, bx+(hasS?20:6), by-8);
-                if(hasS){ctx.beginPath(); ctx.arc(bx+10,by-14,4,0,Math.PI*2); ctx.fillStyle=s.statusColor; ctx.fill(); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.lineWidth=1; ctx.stroke();}
-                ctx.beginPath(); ctx.arc(bx-10,by-15,10,0,Math.PI*2); ctx.fillStyle="#333"; ctx.fill(); ctx.strokeStyle="#fff"; ctx.lineWidth=1; ctx.stroke();
-                ctx.fillStyle="#fff"; ctx.font="bold 12px monospace"; ctx.textAlign="center"; ctx.fillText(idx+1,bx-10,by-11); ctx.textAlign="start";
+
+                // V29: 取得左上角座標
+                const origin = getShapeOrigin(s);
+                // V29: Offset 邏輯簡化，直接往上長
+                const bx = origin.x; 
+                const by = origin.y - 10; // 預設在框框上方 10px
+
+                // 決定是否顯示完整標籤
+                const shouldShowLabel = showFullLabels || isHover || act;
+
+                // 1. 繪製編號球 (永遠顯示)
+                ctx.beginPath(); 
+                ctx.arc(bx, by, 12, 0, Math.PI*2); 
+                ctx.fillStyle = "#333"; ctx.fill(); 
+                ctx.strokeStyle = "#fff"; ctx.lineWidth=2; ctx.stroke();
+                ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; 
+                ctx.fillText(idx+1, bx, by+4);
+
+                // 2. 繪製標籤 (條件顯示)
+                if (shouldShowLabel) {
+                    ctx.font="14px sans-serif"; 
+                    const tm=ctx.measureText(s.title); 
+                    const hasS=!!s.statusColor; 
+                    const pd=hasS?25:12; 
+                    const bw=tm.width+pd;
+                    
+                    // 標籤緊接在編號球右側
+                    const labelX = bx + 15;
+                    const labelY = by; 
+
+                    // 半透明背景 (避免完全遮擋)
+                    ctx.fillStyle = act ? "rgba(250, 173, 20, 0.9)" : "rgba(40, 167, 69, 0.85)"; 
+                    ctx.beginPath(); 
+                    ctx.roundRect(labelX, labelY - 12, bw, 24, 4); 
+                    ctx.fill();
+                    
+                    ctx.textAlign="start";
+                    ctx.fillStyle = "#fff"; 
+                    ctx.shadowColor="rgba(0,0,0,0.5)"; ctx.shadowBlur=2; // 加陰影增加可讀性
+                    ctx.fillText(s.title, labelX + (hasS?20:6), labelY + 5);
+                    ctx.shadowBlur=0; // Reset
+
+                    if(hasS){
+                        ctx.beginPath(); ctx.arc(labelX+10, labelY, 4, 0, Math.PI*2); 
+                        ctx.fillStyle=s.statusColor; ctx.fill(); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.lineWidth=1; ctx.stroke();
+                    }
+                }
+
             } else { ctx.strokeStyle="#ff0055"; ctx.lineWidth=2; ctx.stroke(); }
         }
 
@@ -437,13 +523,8 @@
             inputStatusText.value = s.statusText || ""; selectColor(s.statusColor || "");
             
             tempRefImgBase64 = s.refImage || "";
-            if(tempRefImgBase64) {
-                refImgPreview.src = tempRefImgBase64;
-                refImgPreviewContainer.classList.remove('hidden');
-                refImgPlaceholder.classList.add('hidden');
-            } else {
-                removeRefImg();
-            }
+            if(tempRefImgBase64) { refImgPreview.src = tempRefImgBase64; refImgPreviewContainer.classList.remove('hidden'); refImgPlaceholder.classList.add('hidden'); } 
+            else { removeRefImg(); }
 
             renderQuickTags(); modal.classList.add('show'); inputTitle.focus();
         }
@@ -494,21 +575,11 @@
             const p=10; x=Math.max(0,x-p); y=Math.max(0,y-p); w=w+p*2; h=h+p*2; c.width=w; c.height=h; ct.drawImage(image,x,y,w,h,0,0,w,h); return c.toDataURL('image/jpeg', 0.8);
         }
 
-        // --- 匯出功能: Excel 邏輯 (完全展開) ---
         async function downloadRealExcel() {
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
-            ws.columns = [ 
-                {header:'ID',key:'id',width:8}, 
-                {header:'截圖快照 (Snapshot)',key:'thumb',width:35}, 
-                {header:'參考圖 (Reference)',key:'ref',width:35}, 
-                {header:'標題',key:'title',width:30}, 
-                {header:'狀態',key:'status',width:15}, 
-                {header:'說明',key:'desc',width:50} 
-            ];
-            ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; 
-            ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; 
-            ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
+            ws.columns = [ {header:'ID',key:'id',width:8}, {header:'截圖快照 (Snapshot)',key:'thumb',width:35}, {header:'參考圖 (Reference)',key:'ref',width:35}, {header:'標題',key:'title',width:30}, {header:'狀態',key:'status',width:15}, {header:'說明',key:'desc',width:50} ];
+            ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
 
             for (let i = 0; i < shapes.length; i++) {
                 const s = shapes[i]; const rId = i + 2;
@@ -524,11 +595,9 @@
                 row.getCell('desc').alignment={vertical:'middle',wrapText:true};
                 const sc = row.getCell('status'); sc.alignment={vertical:'middle',horizontal:'center'}; sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
 
-                // Snapshot
                 const snapId = wb.addImage({ base64: getRegionImage(s), extension: 'jpeg' });
                 ws.addImage(snapId, { tl:{col:1.1,row:rId-1+0.1}, br:{col:1.9,row:rId-0.1}, editAs:'oneCell' });
 
-                // Reference Image
                 if(s.refImage) {
                     const refId = wb.addImage({ base64: s.refImage, extension: 'jpeg' });
                     ws.addImage(refId, { tl:{col:2.1,row:rId-1+0.1}, br:{col:2.9,row:rId-0.1}, editAs:'oneCell' });
@@ -540,51 +609,35 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v28"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v29"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
-        // --- 匯出功能: HTML 邏輯 (完全展開) ---
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製"); return; }
             const rd = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
             let svgC = ''; let listHtml = '';
             
-            // 預先計算 Badge Offset
-            const pS = shapes.map((s, idx) => { const c = getShapeCenter(s); const o = getBadgeOffset(idx); return { ...s, cx: c.x, cy: c.y, ox: o.x, oy: o.y, id: idx + 1 }; });
+            // HTML 匯出也改用左上角邏輯 (保持一致)
+            const pS = shapes.map((s, idx) => { 
+                const origin = getShapeOrigin(s); 
+                // HTML 中的 badge 位置
+                return { ...s, bx: origin.x, by: origin.y - 10, id: idx + 1 }; 
+            });
 
-            // 產生清單內容
             pS.forEach((s, index) => {
                 const id = `region-${index}`;
+                let shH = ''; if(s.type === 'rect') { const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y); const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y); shH = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`; } else { const p = s.points.map(pt => `${pt.x},${pt.y}`).join(' '); shH = `<polygon points="${p}" />`; }
+                
                 // SVG 生成
-                let shH = ''; 
-                if(s.type === 'rect') { 
-                    const w = Math.abs(s.end.x - s.start.x); const h = Math.abs(s.end.y - s.start.y); 
-                    const x = Math.min(s.start.x, s.end.x); const y = Math.min(s.start.y, s.end.y); 
-                    shH = `<rect x="${x}" y="${y}" width="${w}" height="${h}" />`; 
-                } else { 
-                    const p = s.points.map(pt => `${pt.x},${pt.y}`).join(' '); 
-                    shH = `<polygon points="${p}" />`; 
-                }
-                const bcx = s.cx + s.ox; const bcy = s.cy + s.oy;
                 svgC += `<g id="svg-${id}" class="interactive-group" onclick="activateRegion('${id}')" onmouseenter="hoverRegion('${id}', true)" onmouseleave="hoverRegion('${id}', false)">
                             ${shH}
-                            <circle cx="${bcx}" cy="${bcy}" r="12" class="badge-bg" />
-                            <text x="${bcx}" y="${bcy}" dy="4" text-anchor="middle" class="badge-text">${s.id}</text>
+                            <circle cx="${s.bx}" cy="${s.by}" r="12" class="badge-bg" />
+                            <text x="${s.bx}" y="${s.by}" dy="4" text-anchor="middle" class="badge-text">${s.id}</text>
                         </g>`;
                 
-                // 列表生成
-                let badge = ''; 
-                if(s.statusText) { 
-                    const bg = s.statusColor || '#6c757d'; 
-                    badge = `<span class="status-badge" style="background-color:${bg}">${s.statusText}</span>`; 
-                }
+                let badge = ''; if(s.statusText) { const bg = s.statusColor || '#6c757d'; badge = `<span class="status-badge" style="background-color:${bg}">${s.statusText}</span>`; }
                 
-                // 智慧樣式判斷
-                const hasDesc = !!s.desc;
-                const hasRef = !!s.refImage;
-                const isEmpty = !hasDesc && !hasRef;
-                const itemClass = isEmpty ? 'list-item title-only' : 'list-item';
-                
+                const hasDesc = !!s.desc; const hasRef = !!s.refImage; const isEmpty = !hasDesc && !hasRef; const itemClass = isEmpty ? 'list-item title-only' : 'list-item';
                 let contentHtml = '';
                 if(!isEmpty) {
                     let refHtml = hasRef ? `<div style="margin-top:10px; border-top:1px dashed #555; padding-top:10px;"><div style="font-size:0.8em; color:#aaa; margin-bottom:5px;">📌 參考範例：</div><img src="${s.refImage}" style="max-width:100%; border-radius:4px; box-shadow:0 2px 5px rgba(0,0,0,0.3);"></div>` : '';
@@ -601,128 +654,61 @@
                             </div>`;
             });
 
-            // 輸出 HTML 檔案
-            const html = `<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>專案導覽</title>
-    <style>
-        body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
-        .layout-container { display: flex; width: 100%; height: 100%; }
-        .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
-        .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; }
-        img { display: block; max-width: 100%; } 
-        .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
-        .interactive-group { cursor: pointer; pointer-events: auto; }
-        .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
-        .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; } 
-        .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
-        .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
-        .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; } 
-        .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; }
-        .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
-        .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; } 
-        .interactive-group.active .badge-text { fill: #fff; } 
-        @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
-        .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
-        .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
-        .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
-        .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
-        .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; }
-        .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
-        .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
-        .list-item:not(.title-only) .item-title::after { content: '+'; color: #888; font-weight: normal; }
-        .list-item.active:not(.title-only) .item-title::after { content: '−'; color: #fff; }
-        .list-item.title-only { padding: 5px 0; background: #333; border: 1px solid #444; }
-        .list-item.title-only:hover { background: #3a3a3a; }
-        .list-item.title-only .item-title { padding: 8px 15px; font-size: 1em; color: #ddd; }
-        .list-num { color: #888; margin-right: 5px; font-family: monospace; } .list-item.active .list-num { color: #28a745; }
-        .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
-        .list-item.active .item-desc { padding: 15px; max-height: 1500px; opacity: 1; }
-        .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
-        .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; }
-        .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; }
-        .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
-        .zoom-btn:hover { background: #28a745; border-color: #28a745; }
-        .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } 
-        .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; } 
-        .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
-    </style>
-</head>
-<body>
-    <div class="layout-container">
-        <div class="map-section" id="mapSection">
-            <div class="stage" id="stage" style="width: 95%;">
-                <img src="${rd.imgData}">
-                <svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgC}</svg>
-            </div>
-            <div class="zoom-controls">
-                <button class="zoom-btn" onclick="setZoom(100)">100%</button>
-                <button class="zoom-btn" onclick="setZoom('fit')">Fit</button>
-                <button class="zoom-btn" onclick="zoomIn()">+</button>
-                <button class="zoom-btn" onclick="zoomOut()">-</button>
-            </div>
-        </div>
-        <div class="sidebar">
-            <div class="sidebar-header">
-                <div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div>
-                <button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button>
-            </div>
-            <div class="sidebar-content" id="sidebarList">${listHtml}</div>
-        </div>
-    </div>
-    <div class="note-modal" id="noteModal" onclick="toggleNote()">
-        <div class="note-card" onclick="event.stopPropagation()">
-            <div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div>
-            <div class="note-body">${safeNote}</div>
-        </div>
-    </div>
-    <script id="restore-data" type="application/json">${JSON.stringify(rd)}<\/script>
-    <script>
-        let currentZoom = 95; const stage = document.getElementById('stage'); 
-        function updateZoom() { stage.style.width = currentZoom + '%'; } 
-        function zoomIn() { currentZoom += 10; updateZoom(); } 
-        function zoomOut() { if(currentZoom > 20) currentZoom -= 10; updateZoom(); } 
-        function setZoom(val) { currentZoom = (val === 'fit') ? 95 : 100; updateZoom(); } 
-        
-        let activeId = null; 
-        function activateRegion(id) { 
-            if(activeId === id) { deactivate(); return; } 
-            if(activeId) deactivate(); 
-            activeId = id; 
-            document.getElementById('svg-' + id)?.classList.add('active'); 
-            const listItem = document.getElementById('list-' + id); 
-            if(listItem) {
-                listItem.classList.add('active'); 
-                listItem.scrollIntoView({ behavior: 'smooth', block: 'center' }); 
-            }
-        } 
-        function deactivate() { 
-            if(!activeId) return; 
-            document.getElementById('svg-' + activeId)?.classList.remove('active'); 
-            document.getElementById('list-' + activeId)?.classList.remove('active'); 
-            activeId = null; 
-        } 
-        function hoverRegion(id, isEnter) { 
-            if(activeId === id) return; 
-            const svgEl = document.getElementById('svg-' + id); 
-            const listEl = document.getElementById('list-' + id); 
-            if(isEnter) { svgEl?.classList.add('hovered'); listEl?.classList.add('hovered'); } 
-            else { svgEl?.classList.remove('hovered'); listEl?.classList.remove('hovered'); } 
-        } 
-        function toggleNote() { 
-            const m = document.getElementById('noteModal'); 
-            m.style.display = (m.style.display === 'flex') ? 'none' : 'flex'; 
-        } 
-    <\/script>
-</body>
-</html>`;
+            const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽</title><style>
+                body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
+                .layout-container { display: flex; width: 100%; height: 100%; }
+                .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
+                .stage { position: relative; margin-top: 20px; box-shadow: 0 0 50px rgba(0,0,0,0.5); transform-origin: top center; transition: transform 0.2s; }
+                img { display: block; max-width: 100%; } .overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; }
+                .interactive-group { cursor: pointer; pointer-events: auto; }
+                .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
+                .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; } .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
+                .interactive-group:hover rect, .interactive-group:hover polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
+                .interactive-group:hover .badge-bg { fill: #FFD700; stroke: #000; } 
+                .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
+                .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; } 
+                @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
+                .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
+                .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
+                .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
+                .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
+                .list-item:hover { background: #444; border-left-color: #FFD700; }
+                .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
+                .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
+                .list-item:not(.title-only) .item-title::after { content: '+'; color: #888; font-weight: normal; }
+                .list-item.active:not(.title-only) .item-title::after { content: '−'; color: #fff; }
+                .list-item.title-only { padding: 5px 0; background: #333; border: 1px solid #444; }
+                .list-item.title-only:hover { background: #3a3a3a; }
+                .list-num { color: #888; margin-right: 5px; font-family: monospace; } .list-item.active .list-num { color: #28a745; }
+                .item-desc { padding: 0 15px; max-height: 0; opacity: 0; overflow: hidden; transition: all 0.3s; color: #ddd; line-height: 1.6; font-size: 0.95em; border-top: 1px solid rgba(255,255,255,0.05); }
+                .list-item.active .item-desc { padding: 15px; max-height: 1500px; opacity: 1; }
+                .status-badge { font-size: 0.75em; color: #fff; padding: 2px 8px; border-radius: 10px; vertical-align: middle; }
+                .highlight-text { background-color: #ffeb3b; color: #000; padding: 2px 4px; border-radius: 3px; }
+                .zoom-controls { position: fixed; bottom: 20px; left: 20px; display: flex; gap: 8px; z-index: 100; }
+                .zoom-btn { background: rgba(0,0,0,0.7); color: white; border: 1px solid #555; padding: 6px 14px; border-radius: 20px; cursor: pointer; transition: 0.2s; }
+                .zoom-btn:hover { background: #28a745; border-color: #28a745; }
+                .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; } .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
+            </style></head><body>
+            <div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${rd.imgData}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgC}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listHtml}</div></div></div>
+            <div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div><div class="note-body">${safeNote}</div></div></div>
+            <script id="restore-data" type="application/json">${JSON.stringify(rd)}<\/script>
+            <script>
+                let currentZoom=95; const stage=document.getElementById('stage'); function updateZoom(){stage.style.width=currentZoom+'%';} function zoomIn(){currentZoom+=10;updateZoom();} function zoomOut(){if(currentZoom>20)currentZoom-=10;updateZoom();} function setZoom(v){currentZoom=(v==='fit')?95:100;updateZoom();}
+                let activeId=null;
+                function activateRegion(id){
+                    if(activeId===id){deactivate();return;} if(activeId)deactivate(); activeId=id;
+                    document.getElementById('svg-'+id)?.classList.add('active');
+                    const item = document.getElementById('list-'+id);
+                    if(item){ item.classList.add('active'); item.scrollIntoView({behavior:'smooth',block:'center'}); }
+                }
+                function deactivate(){ if(!activeId)return; document.getElementById('svg-'+activeId)?.classList.remove('active'); document.getElementById('list-'+activeId)?.classList.remove('active'); activeId=null; }
+                function hoverRegion(id,en){ if(activeId===id)return; const s=document.getElementById('svg-'+id); const l=document.getElementById('list-'+id); if(en){s?.classList.add('hovered');l?.classList.add('hovered');}else{s?.classList.remove('hovered');l?.classList.remove('hovered');} }
+                function toggleNote(){ const m=document.getElementById('noteModal'); m.style.display=(m.style.display==='flex')?'none':'flex'; }
+            <\/script></body></html>`;
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v28"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v29"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
