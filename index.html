@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器</title>
+    <title>Image Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 --- */
@@ -61,7 +61,7 @@
         /* --- 6. 編輯 Modal --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
         .editor-modal.show { visibility: visible; opacity: 1; }
-        .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; max-height: 90vh; overflow-y: auto; }
+        .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; max-height: 95vh; overflow-y: auto; }
         .editor-modal.show .editor-card { transform: scale(1); }
         .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
         
@@ -78,7 +78,8 @@
         .tag-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
 
         .textarea-container { position: relative; }
-        textarea { width: 100%; height: 120px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
+        /* V31: 加大 Textarea 高度，方便多點項目編輯 */
+        textarea { width: 100%; height: 180px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
         .textarea-toolbar { position: absolute; top: 1px; left: 1px; right: 1px; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 6px; border-radius: 6px 6px 0 0; display: flex; gap: 8px; align-items: center; }
         .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .tips { font-size: 0.8em; color: #888; margin-left: auto; }
@@ -97,7 +98,7 @@
 <body>
 
     <h1>Image Map 生成器</h1>
-    <div class="subtitle">支援文件審閱、Excel 無警告、智慧標籤切換</div>
+    <div class="subtitle">快捷鍵支援</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -164,13 +165,13 @@
                 <input type="hidden" id="inputStatusColor" value="">
             </div>
             <div>
-                <label>詳細內容 (文字說明)</label>
+                <label>詳細內容 (支援多行)</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
                         <button class="tool-btn" onclick="addHighlight()">🖍️ 重點</button>
                         <button id="btnGenLegend" class="tool-btn magic hidden" onclick="generateLegendToNote()">✨ 產生圖例</button>
                     </div>
-                    <textarea id="inputDesc" placeholder="請輸入問題描述或需求說明..."></textarea>
+                    <textarea id="inputDesc" placeholder="1. 項目一&#10;2. 項目二&#10;3. 項目三"></textarea>
                 </div>
             </div>
             <div id="refImgGroup">
@@ -222,7 +223,6 @@
         const imgInput = document.getElementById('imgInput');
         const importInput = document.getElementById('importInput');
         
-        // UI
         const modal = document.getElementById('editorModal');
         const tagManagerModal = document.getElementById('tagManagerModal');
         const inputTitle = document.getElementById('inputTitle');
@@ -254,16 +254,14 @@
         let globalNote = ""; let isEditingNote = false; let editingShapeIndex = -1;
         let tagPresets = []; 
         let tempRefImgBase64 = "";
-        
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V30 Final)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V31 報表優化版)", 300, 250);
         loadPresets();
 
-        // 鍵盤監聽: 刪除, ESC, Ctrl+Z
         document.addEventListener('keydown', (e) => {
             if (modal.classList.contains('show') || tagManagerModal.classList.contains('show')) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -281,7 +279,6 @@
             }
         });
 
-        // --- File I/O ---
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
@@ -316,7 +313,6 @@
             image.src = src;
         }
 
-        // --- Tag Manager ---
         function loadPresets() {
             const saved = localStorage.getItem('imgMapPresets_v25');
             if(saved) { tagPresets = JSON.parse(saved); } else { tagPresets = [ { name: '嚴重 Bug', color: '#dc3545' }, { name: '功能優化', color: '#ffc107' }, { name: '已完成', color: '#28a745' } ]; }
@@ -337,29 +333,10 @@
         function addPresetTag() { const name = newTagName.value.trim(); const color = newTagColor.value; if(!name) return; tagPresets.push({ name, color }); savePresets(); newTagName.value = ''; renderPresetList(); openTagManager(); }
         function deletePreset(idx) { if(confirm("刪除此標籤？")) { tagPresets.splice(idx, 1); savePresets(); renderPresetList(); openTagManager(); } }
 
-        // --- Drawing Logic ---
         function setTool(t) { tool = t; document.getElementById('btnRect').classList.toggle('active', t === 'rect'); document.getElementById('btnPoly').classList.toggle('active', t === 'poly'); currentShape = null; redraw(); }
         function getPos(e) { const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; }
-        
-        canvas.addEventListener('mousedown', (e) => { 
-            if (!image.src) return; 
-            if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } 
-            const pos = getPos(e); 
-            if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } 
-            else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } 
-            redraw(); 
-        });
-        
-        canvas.addEventListener('mousemove', (e) => { 
-            if (!image.src) return; 
-            const pos = getPos(e); 
-            lastMousePos = pos; 
-            
-            if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } 
-            else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } 
-            else if (!isDrawing) { redraw(); }
-        });
-        
+        canvas.addEventListener('mousedown', (e) => { if (!image.src) return; if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } const pos = getPos(e); if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } redraw(); });
+        canvas.addEventListener('mousemove', (e) => { if (!image.src) return; const pos = getPos(e); lastMousePos = pos; if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } else if (!isDrawing) { redraw(); }});
         canvas.addEventListener('mouseup', (e) => { if (tool === 'rect' && isDrawing) { isDrawing = false; if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape, -1); currentShape = null; redraw(); } });
         canvas.addEventListener('dblclick', (e) => { if (tool === 'poly' && currentShape && currentShape.points.length > 2) { openEditor(currentShape, -1); currentShape = null; redraw(); } });
         function selectColor(color) { inputStatusColor.value = color; document.querySelectorAll('.color-opt').forEach(el => { el.classList.toggle('selected', el.getAttribute('style').includes(color)); }); }
@@ -584,32 +561,50 @@
             const p=10; x=Math.max(0,x-p); y=Math.max(0,y-p); w=w+p*2; h=h+p*2; c.width=w; c.height=h; ct.drawImage(image,x,y,w,h,0,0,w,h); return c.toDataURL('image/jpeg', 0.8);
         }
 
+        // --- V31 Excel 優化 ---
         async function downloadRealExcel() {
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
-            ws.columns = [ {header:'ID',key:'id',width:8}, {header:'截圖快照 (Snapshot)',key:'thumb',width:35}, {header:'參考圖 (Reference)',key:'ref',width:35}, {header:'標題',key:'title',width:30}, {header:'狀態',key:'status',width:15}, {header:'說明',key:'desc',width:50} ];
+            
+            // V31: 加寬欄位
+            ws.columns = [ 
+                {header:'ID',key:'id',width:6}, 
+                {header:'截圖快照 (Snapshot)',key:'thumb',width:50}, 
+                {header:'參考圖 (Reference)',key:'ref',width:50}, 
+                {header:'標題',key:'title',width:30}, 
+                {header:'狀態',key:'status',width:15}, 
+                {header:'說明',key:'desc',width:70} 
+            ];
+            
             ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
 
             for (let i = 0; i < shapes.length; i++) {
                 const s = shapes[i]; const rId = i + 2;
                 const stC = s.statusColor?s.statusColor.replace('#',''):'FFFFFF';
                 const fC = (stC==='dc3545'||stC==='217346'||stC==='007bff')?'FFFFFFFF':'FF000000';
-                
+                let cleanDesc = (s.desc || "").replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
+
                 const row = ws.getRow(rId);
-                row.values = { id:i+1, title:s.title, status:s.statusText, desc:(s.desc||"").replace(/<br>/g,'\n').replace(/<[^>]+>/g,'') };
-                row.height = 100;
+                row.values = { id:i+1, title:s.title, status:s.statusText, desc: cleanDesc };
+                
+                // V31: 增加列高到 150，容納大圖
+                row.height = 150;
                 
                 row.getCell('id').alignment={vertical:'middle',horizontal:'center'};
                 row.getCell('title').alignment={vertical:'middle',wrapText:true};
-                row.getCell('desc').alignment={vertical:'middle',wrapText:true};
+                
+                // V31: 說明欄位靠上對齊
+                row.getCell('desc').alignment={vertical:'top',horizontal:'left',wrapText:true, indent: 1};
+                
                 const sc = row.getCell('status'); sc.alignment={vertical:'middle',horizontal:'center'}; sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
 
+                // V31: 縮小圖片邊距，最大化顯示
                 const snapId = wb.addImage({ base64: getRegionImage(s), extension: 'jpeg' });
-                ws.addImage(snapId, { tl:{col:1.1,row:rId-1+0.1}, br:{col:1.9,row:rId-0.1}, editAs:'oneCell' });
+                ws.addImage(snapId, { tl:{col:1.02,row:rId-1+0.02}, br:{col:1.98,row:rId-0.02}, editAs:'oneCell' });
 
                 if(s.refImage) {
                     const refId = wb.addImage({ base64: s.refImage, extension: 'jpeg' });
-                    ws.addImage(refId, { tl:{col:2.1,row:rId-1+0.1}, br:{col:2.9,row:rId-0.1}, editAs:'oneCell' });
+                    ws.addImage(refId, { tl:{col:2.02,row:rId-1+0.02}, br:{col:2.98,row:rId-0.02}, editAs:'oneCell' });
                 } else {
                     row.getCell('ref').value = "(無)";
                     row.getCell('ref').alignment={vertical:'middle',horizontal:'center',color:{argb:'FF999999'}};
@@ -618,7 +613,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v30"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v31"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -674,16 +669,18 @@
                 .interactive-group { cursor: pointer; pointer-events: auto; }
                 .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
                 .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; } .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
-                .interactive-group:hover rect, .interactive-group:hover polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
-                .interactive-group:hover .badge-bg { fill: #FFD700; stroke: #000; } 
+                .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
+                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; } 
+                .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; }
                 .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
                 .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; } 
+                .interactive-group.active .badge-text { fill: #fff; } 
                 @keyframes pulse { 0% { stroke-opacity: 1; } 50% { stroke-opacity: 0.5; } 100% { stroke-opacity: 1; } }
                 .sidebar { flex: 1; min-width: 350px; max-width: 450px; background: #2b2b2b; color: #fff; display: flex; flex-direction: column; z-index: 20; border-left: 1px solid #444; }
                 .sidebar-header { padding: 15px 20px; background: #333; border-bottom: 1px solid #444; display: flex; justify-content: space-between; align-items: center; }
                 .sidebar-content { flex: 1; overflow-y: auto; padding: 15px; scroll-behavior: smooth; }
                 .list-item { background: #383838; margin-bottom: 10px; border-radius: 8px; cursor: pointer; border-left: 4px solid transparent; transition: all 0.2s; }
-                .list-item:hover { background: #444; border-left-color: #FFD700; }
+                .list-item:hover, .list-item.hovered { background: #444; border-left-color: #FFD700; }
                 .list-item.active { background: #444; border-left-color: #28a745; box-shadow: 0 0 15px rgba(40,167,69,0.2); }
                 .item-title { padding: 12px 15px; font-weight: bold; font-size: 1.05em; display: flex; justify-content: space-between; align-items: center; }
                 .list-item:not(.title-only) .item-title::after { content: '+'; color: #888; font-weight: normal; }
@@ -721,7 +718,6 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
-                        // V30: 將 hover 的元素移到最上層，避免被遮擋
                         if(s) s.parentNode.appendChild(s);
                     }else{
                         s?.classList.remove('hovered');
@@ -733,7 +729,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v30"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v31"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
