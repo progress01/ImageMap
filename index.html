@@ -38,20 +38,18 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 (Sidekick) --- */
+        /* --- 4. 懸浮清單 (Sidekick) - V35 修復樣式 --- */
         .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
         .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
-        .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px;}
+        .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
         .sk-head-row { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: move; }
         .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
-        /* V34 搜尋框 */
         .sk-search { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
         
-        .sidekick-content { flex: 1; overflow-y: auto; padding: 10px; background: #fff; border-radius: 0 0 10px 10px; }
+        .sidekick-content { flex: 1; overflow-y: auto; padding: 10px; background: #fff; border-radius: 0 0 10px 10px; min-height: 50px; }
         .sk-item { padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px; cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; background: #fff; transition: 0.2s; }
         .sk-item:hover { background: #f4f6f8; }
         .sk-item.active { border-left-color: #28a745; background: #e8f5e9; border-color: #c3e6cb; }
-        .sk-item.hidden { display: none; }
         .sk-actions { display: flex; gap: 4px; }
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
@@ -67,7 +65,7 @@
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
         
-        /* V34 Tag Manager Styles */
+        /* Tag Manager Styles */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -112,8 +110,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器</h1>
-    <div class="subtitle">RTM自動存檔、RTM ID、資料一致性、搜尋過濾</div>
+    <h1>Image Map</h1>
+    <div class="subtitle">RTM列表修復、自動存檔、RTM ID</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -283,13 +281,12 @@
         
         const modal = document.getElementById('editorModal');
         const tagManagerModal = document.getElementById('tagManagerModal');
-        const inputRtmId = document.getElementById('inputRtmId'); // V34
+        const inputRtmId = document.getElementById('inputRtmId'); 
         const inputTitle = document.getElementById('inputTitle');
         const inputDesc = document.getElementById('inputDesc');
         const inputStatusText = document.getElementById('inputStatusText');
         const inputStatusColor = document.getElementById('inputStatusColor');
         const quickTagsArea = document.getElementById('quickTagsArea');
-        const btnGenLegend = document.getElementById('btnGenLegend');
         const fileNameInput = document.getElementById('fileNameInput');
         const sidekickPanel = document.getElementById('sidekickPanel');
         const sidekickList = document.getElementById('sidekickList');
@@ -318,15 +315,14 @@
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
         let tempAttributes = {}; 
-        // V34: Auto-save Key
-        const AUTOSAVE_KEY = 'imgMap_v34_autosave';
+        const AUTOSAVE_KEY = 'imgMap_v35_autosave'; // Versioned key
 
         // --- Init ---
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V34 RTM 旗艦版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V35 修復版)", 300, 250);
         loadPresets();
-        checkAutoSave(); // V34 Check on load
+        checkAutoSave();
 
         // --- Event Listeners ---
         document.addEventListener('keydown', (e) => {
@@ -379,7 +375,6 @@
             image.src = src;
         }
 
-        // --- Auto Save System (V34) ---
         function saveToLocal() {
             if(!originalImageDataUrl) return;
             const data = {
@@ -397,7 +392,6 @@
             if(dataStr) {
                 try {
                     const data = JSON.parse(dataStr);
-                    // Check if data is valid and not empty
                     if(data.imgData && (data.shapes.length > 0 || data.globalNote)) {
                         if(confirm(`發現未儲存的草稿 (${new Date(data.timestamp).toLocaleString()})，是否還原？`)) {
                             loadImage(data.imgData);
@@ -405,8 +399,6 @@
                             globalNote = data.globalNote;
                             fileNameInput.value = data.fileName || "restored_project";
                             renderSidekick();
-                        } else {
-                            // User chose not to restore, maybe clear it? No, keep it just in case.
                         }
                     }
                 } catch(e) { console.error("Auto-save load failed", e); }
@@ -420,7 +412,6 @@
             }
         }
 
-        // --- Tag Manager ---
         function loadPresets() {
             const saved = localStorage.getItem('imgMapPresets_v25');
             if(saved) { tagPresets = JSON.parse(saved); } else { tagPresets = [ { name: '嚴重 Bug', color: '#dc3545' }, { name: '功能優化', color: '#ffc107' }, { name: '已完成', color: '#28a745' } ]; }
@@ -441,7 +432,6 @@
         function addPresetTag() { const name = newTagName.value.trim(); const color = newTagColor.value; if(!name) return; tagPresets.push({ name, color }); savePresets(); newTagName.value = ''; renderPresetList(); openTagManager(); }
         function deletePreset(idx) { if(confirm("刪除此標籤？")) { tagPresets.splice(idx, 1); savePresets(); renderPresetList(); openTagManager(); } }
 
-        // --- Drawing Logic ---
         function setTool(t) { tool = t; document.getElementById('btnRect').classList.toggle('active', t === 'rect'); document.getElementById('btnPoly').classList.toggle('active', t === 'poly'); currentShape = null; redraw(); }
         function getPos(e) { const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; }
         
@@ -459,7 +449,6 @@
             const pos = getPos(e); 
             lastMousePos = pos; 
             
-            // V34: Hover sync
             const hoverIdx = shapes.findIndex(s => isMouseOverShape(s, pos));
             if(hoverIdx !== -1) {
                 const listItem = document.getElementById(`sk-item-${hoverIdx}`);
@@ -521,10 +510,13 @@
 
         function toggleSidekick() { sidekickPanel.classList.toggle('minimized'); const btn = sidekickPanel.querySelector('.sidekick-toggle'); if(sidekickPanel.classList.contains('minimized')) { btn.innerText = "➕"; skTitle.innerText = ""; } else { btn.innerText = "➖"; renderSidekick(); } }
         
-        // V34: Render Sidekick with Search
+        // V35 FIX: Safe Render Sidekick
         function renderSidekick() {
             sidekickList.innerHTML = ''; skTitle.innerText = `項目列表 (${shapes.length})`;
-            const filter = document.getElementById('searchInput').value.toLowerCase();
+            
+            // V35 FIX: Safe Check for Search Input
+            const searchEl = document.getElementById('searchInput');
+            const filter = searchEl ? searchEl.value.toLowerCase() : '';
 
             if(shapes.length === 0) { sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>'; return; }
             
@@ -532,14 +524,13 @@
                 const title = s.title || "未命名";
                 const rtmId = s.rtmId || "";
                 
-                // V34 Filter Logic
                 if(filter && !title.toLowerCase().includes(filter) && !rtmId.toLowerCase().includes(filter)) {
-                    return; // Skip this item
+                    return; 
                 }
 
                 const item = document.createElement('div'); 
                 item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
-                item.id = `sk-item-${idx}`; // For scroll sync
+                item.id = `sk-item-${idx}`; 
                 item.onclick = () => focusShape(idx);
                 
                 const dotHtml = s.statusColor ? `<span class="status-dot" style="background:${s.statusColor}"></span>` : '';
@@ -557,7 +548,7 @@
             });
         }
         
-        function filterShapes(val) { renderSidekick(); } // V34 Trigger
+        function filterShapes(val) { renderSidekick(); } 
 
         function focusShape(idx) { focusedShapeIndex = idx; renderSidekick(); redraw(); const c = getShapeCenter(shapes[idx]); const r = canvas.getBoundingClientRect(); window.scrollTo({ top: (window.scrollY + r.top + c.y) - (window.innerHeight/2), left: (window.scrollX + r.left + c.x) - (window.innerWidth/2), behavior: 'smooth' }); }
         function getShapeOrigin(s) { if(s.type==='rect') return {x: Math.min(s.start.x, s.end.x), y: Math.min(s.start.y, s.end.y)}; let minX=Infinity, minY=Infinity; s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); }); return {x:minX, y:minY}; }
@@ -589,7 +580,7 @@
                 
                 if (shouldShowLabel) {
                     let titleText = s.title;
-                    if(s.rtmId) titleText = `[${s.rtmId}] ` + titleText; // V34: Show RTM ID on Canvas Label
+                    if(s.rtmId) titleText = `[${s.rtmId}] ` + titleText; 
 
                     ctx.font="14px sans-serif"; const tm=ctx.measureText(titleText); const hasS=!!s.statusColor; const pd=hasS?25:12; const bw=tm.width+pd;
                     const labelX = bx + 15; const labelY = by; 
@@ -602,7 +593,6 @@
             } else { ctx.strokeStyle="#ff0055"; ctx.lineWidth=2; ctx.stroke(); }
         }
 
-        // --- Attribute Management (V34 Datalist Integration) ---
         function addAttr(name) {
             const key = name || prompt("請輸入屬性名稱 (例如：負責人):");
             if(!key) return;
@@ -627,7 +617,6 @@
                 const div = document.createElement('div');
                 div.className = 'attr-row';
                 
-                // V34: Link to datalists based on key name
                 let listAttr = "";
                 if(key.includes("優先") || key.toLowerCase().includes("priority")) listAttr = 'list="attr-priority"';
                 if(key.includes("類型") || key.toLowerCase().includes("type")) listAttr = 'list="attr-type"';
@@ -651,7 +640,6 @@
             document.getElementById('titleGroup').classList.remove('hidden'); statusGroup.classList.remove('hidden'); btnGenLegend.classList.add('hidden'); refImgGroup.classList.remove('hidden');
             duplicateBtnGroup.classList.toggle('hidden', idx === -1);
 
-            // V34: Load RTM ID
             inputRtmId.value = s.rtmId || "";
             inputTitle.value = idx === -1 ? ("項目 " + (shapes.length + 1)) : s.title;
             inputDesc.value = idx === -1 ? "" : s.desc.replace(/<br>/g, '\n');
@@ -665,7 +653,6 @@
             renderAttributes();
 
             renderQuickTags(); modal.classList.add('show'); 
-            // V34: Focus RTM ID first if empty, else Title
             if(!inputRtmId.value) inputRtmId.focus(); else inputTitle.focus();
         }
 
@@ -673,8 +660,7 @@
             if(!tempShape) return;
             const newShape = JSON.parse(JSON.stringify(tempShape));
             
-            // "Save as New" Logic
-            newShape.rtmId = inputRtmId.value ? inputRtmId.value + "-COPY" : ""; // V34
+            newShape.rtmId = inputRtmId.value ? inputRtmId.value + "-COPY" : ""; 
             newShape.title = inputTitle.value + " (複製)";
             newShape.desc = inputDesc.value.replace(/\n/g, '<br>');
             newShape.statusText = inputStatusText.value;
@@ -701,7 +687,7 @@
             if (isEditingNote) { globalNote = formattedDesc; } 
             else {
                 if(!tempShape) return;
-                tempShape.rtmId = inputRtmId.value; // V34
+                tempShape.rtmId = inputRtmId.value; 
                 tempShape.title = inputTitle.value || "未命名";
                 tempShape.desc = formattedDesc;
                 tempShape.statusText = inputStatusText.value;
@@ -730,7 +716,6 @@
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
             
-            // V34: Added RTM ID column
             const columns = [ 
                 {header:'ID',key:'id',width:6}, 
                 {header:'RTM ID',key:'rtmId',width:15}, 
@@ -764,7 +749,7 @@
                 const row = ws.getRow(rId);
                 const rowData = { 
                     id:i+1, 
-                    rtmId: s.rtmId || "", // V34
+                    rtmId: s.rtmId || "", 
                     title:s.title, 
                     status:s.statusText, 
                     desc: cleanDesc 
@@ -779,13 +764,13 @@
                 
                 row.eachCell((cell) => { cell.alignment = { vertical: 'top', wrapText: true }; });
                 row.getCell('id').alignment = { vertical: 'top', horizontal: 'center' };
-                row.getCell('rtmId').alignment = { vertical: 'top', horizontal: 'center', bold:true }; // V34 Style
+                row.getCell('rtmId').alignment = { vertical: 'top', horizontal: 'center', bold:true };
                 row.getCell('status').alignment = { vertical: 'top', horizontal: 'center' };
                 
                 const sc = row.getCell('status'); sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
 
                 const snapId = wb.addImage({ base64: getRegionImage(s), extension: 'jpeg' });
-                ws.addImage(snapId, { tl:{col:2.1,row:rId-1+0.1}, br:{col:2.9,row:rId-0.1}, editAs:'oneCell' }); // Offset by 1 col due to RTM ID
+                ws.addImage(snapId, { tl:{col:2.1,row:rId-1+0.1}, br:{col:2.9,row:rId-0.1}, editAs:'oneCell' });
 
                 if(s.refImage) {
                     const refId = wb.addImage({ base64: s.refImage, extension: 'jpeg' });
@@ -798,17 +783,15 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v34"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v35"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製"); return; }
             const rd = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
-            
             const safeNote = globalNote ? globalNote.replace(/\n/g, '<br>') : "無專案筆記";
 
             let svgC = ''; let listHtml = '';
-            
             const pS = shapes.map((s, idx) => { 
                 const origin = getShapeOrigin(s); 
                 let by = origin.y - 10;
@@ -827,7 +810,6 @@
                         </g>`;
                 
                 let badge = ''; if(s.statusText) { const bg = s.statusColor || '#6c757d'; badge = `<span class="status-badge" style="background-color:${bg}">${s.statusText}</span>`; }
-                // V34: Show RTM ID in HTML list
                 let rtmBadge = s.rtmId ? `<span style="font-size:0.8em; background:#eee; padding:1px 5px; border-radius:3px; margin-right:5px; color:#555;">${s.rtmId}</span>` : '';
 
                 const hasDesc = !!s.desc; const hasRef = !!s.refImage; const isEmpty = !hasDesc && !hasRef; const itemClass = isEmpty ? 'list-item title-only' : 'list-item';
@@ -905,7 +887,6 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
-                        // 確保 SVG 元素移到最上層
                         if(s) s.parentNode.appendChild(s);
                     }else{
                         s?.classList.remove('hovered');
@@ -917,7 +898,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v34"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v35"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
