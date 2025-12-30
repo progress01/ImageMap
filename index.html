@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map</title>
+    <title>Image Map 生成器 V32 (有感優化版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 --- */
@@ -35,7 +35,7 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 (Sidekick) --- */
+        /* --- 4. 懸浮清單 --- */
         .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 240px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
         .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
         .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #555; font-size: 0.9em; cursor: move; }
@@ -48,7 +48,17 @@
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
 
-        /* --- 5. 標籤管理 Modal --- */
+        /* --- 5. Modal 樣式 --- */
+        .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
+        .editor-modal.show { visibility: visible; opacity: 1; }
+        .editor-card { background: white; width: 550px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; max-height: 95vh; overflow-y: auto; }
+        .editor-modal.show .editor-card { transform: scale(1); }
+        .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
+        
+        label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
+        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
+        
+        /* 標籤管理與系統維護 */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -58,28 +68,33 @@
         .system-zone { margin-top: 20px; padding-top: 20px; border-top: 2px dashed #eee; }
         .system-stats { font-size: 0.85em; color: #666; margin-bottom: 10px; }
 
-        /* --- 6. 編輯 Modal --- */
-        .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
-        .editor-modal.show { visibility: visible; opacity: 1; }
-        .editor-card { background: white; width: 500px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; max-height: 95vh; overflow-y: auto; }
-        .editor-modal.show .editor-card { transform: scale(1); }
-        .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
-        
-        label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
-        input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
+        /* 顏色選擇器 */
         .status-picker { display: flex; gap: 10px; align-items: center; }
         .color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
         .color-opt:hover { transform: scale(1.1); }
         .color-opt.selected { border-color: #333; transform: scale(1.1); }
         
+        /* 快速標籤 */
         .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 30px; }
         .tag-chip { font-size: 0.85em; padding: 6px 12px; border-radius: 20px; cursor: pointer; border: 1px solid #eee; transition: 0.2s; display: flex; align-items: center; gap: 5px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .tag-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #28a745; }
         .tag-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
 
+        /* V32 優化：加大 Textarea */
         .textarea-container { position: relative; }
-        /* V31: 加大 Textarea 高度，方便多點項目編輯 */
-        textarea { width: 100%; height: 180px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
+        textarea { 
+            width: 100%; 
+            height: 220px; /* 大幅增加高度 */
+            padding: 12px; 
+            padding-top: 45px; 
+            border: 1px solid #ddd; 
+            border-radius: 6px; 
+            resize: vertical; 
+            font-family: inherit; 
+            line-height: 1.6; 
+            box-sizing: border-box; 
+            font-size: 1em; 
+        }
         .textarea-toolbar { position: absolute; top: 1px; left: 1px; right: 1px; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 6px; border-radius: 6px 6px 0 0; display: flex; gap: 8px; align-items: center; }
         .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
         .tips { font-size: 0.8em; color: #888; margin-left: auto; }
@@ -97,8 +112,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器</h1>
-    <div class="subtitle">快捷鍵支援</div>
+    <h1>Image Map 生成器 V32</h1>
+    <div class="subtitle">有感優化版：大尺寸 Excel 報表、文字靠上對齊、編輯器加大</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -259,7 +274,7 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V31 報表優化版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V32 有感優化版)", 300, 250);
         loadPresets();
 
         document.addEventListener('keydown', (e) => {
@@ -561,19 +576,19 @@
             const p=10; x=Math.max(0,x-p); y=Math.max(0,y-p); w=w+p*2; h=h+p*2; c.width=w; c.height=h; ct.drawImage(image,x,y,w,h,0,0,w,h); return c.toDataURL('image/jpeg', 0.8);
         }
 
-        // --- V31 Excel 優化 ---
+        // --- V32: 有感優化 Excel 邏輯 ---
         async function downloadRealExcel() {
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
             
-            // V31: 加寬欄位
+            // V32: 圖片欄位 60, 說明欄位 80
             ws.columns = [ 
                 {header:'ID',key:'id',width:6}, 
-                {header:'截圖快照 (Snapshot)',key:'thumb',width:50}, 
-                {header:'參考圖 (Reference)',key:'ref',width:50}, 
+                {header:'截圖快照 (Snapshot)',key:'thumb',width:60}, 
+                {header:'參考圖 (Reference)',key:'ref',width:60}, 
                 {header:'標題',key:'title',width:30}, 
                 {header:'狀態',key:'status',width:15}, 
-                {header:'說明',key:'desc',width:70} 
+                {header:'說明',key:'desc',width:80} 
             ];
             
             ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
@@ -587,24 +602,27 @@
                 const row = ws.getRow(rId);
                 row.values = { id:i+1, title:s.title, status:s.statusText, desc: cleanDesc };
                 
-                // V31: 增加列高到 150，容納大圖
-                row.height = 150;
+                // V32: Row Height = 200
+                row.height = 200;
                 
-                row.getCell('id').alignment={vertical:'middle',horizontal:'center'};
-                row.getCell('title').alignment={vertical:'middle',wrapText:true};
+                // V32: 全部靠上對齊
+                row.eachCell((cell) => {
+                    cell.alignment = { vertical: 'top', wrapText: true };
+                });
+                // ID 和 狀態 還是水平置中比較好看
+                row.getCell('id').alignment = { vertical: 'top', horizontal: 'center' };
+                row.getCell('status').alignment = { vertical: 'top', horizontal: 'center' };
                 
-                // V31: 說明欄位靠上對齊
-                row.getCell('desc').alignment={vertical:'top',horizontal:'left',wrapText:true, indent: 1};
-                
-                const sc = row.getCell('status'); sc.alignment={vertical:'middle',horizontal:'center'}; sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
+                // 狀態欄位樣式
+                const sc = row.getCell('status'); sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
 
-                // V31: 縮小圖片邊距，最大化顯示
+                // V32: 圖片幾近滿版 (padding 0.05)
                 const snapId = wb.addImage({ base64: getRegionImage(s), extension: 'jpeg' });
-                ws.addImage(snapId, { tl:{col:1.02,row:rId-1+0.02}, br:{col:1.98,row:rId-0.02}, editAs:'oneCell' });
+                ws.addImage(snapId, { tl:{col:1.05,row:rId-1+0.05}, br:{col:1.95,row:rId-0.05}, editAs:'oneCell' });
 
                 if(s.refImage) {
                     const refId = wb.addImage({ base64: s.refImage, extension: 'jpeg' });
-                    ws.addImage(refId, { tl:{col:2.02,row:rId-1+0.02}, br:{col:2.98,row:rId-0.02}, editAs:'oneCell' });
+                    ws.addImage(refId, { tl:{col:2.05,row:rId-1+0.05}, br:{col:2.95,row:rId-0.05}, editAs:'oneCell' });
                 } else {
                     row.getCell('ref').value = "(無)";
                     row.getCell('ref').alignment={vertical:'middle',horizontal:'center',color:{argb:'FF999999'}};
@@ -613,7 +631,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v31"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v32"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -729,7 +747,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v31"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v32"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
