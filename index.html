@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器</title>
+    <title>Image Map</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 --- */
@@ -38,13 +38,19 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 (Sidekick) - V35 修復樣式 --- */
+        /* --- 4. 懸浮清單 (Sidekick) - V36 優化搜尋介面 --- */
         .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
         .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
         .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
         .sk-head-row { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: move; }
         .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
-        .sk-search { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
+        
+        /* V36 Search Box Style */
+        .sk-search-wrapper { position: relative; display: flex; align-items: center; }
+        .sk-search { width: 100%; padding: 6px 25px 6px 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
+        .sk-search:focus { border-color: #007bff; outline: none; }
+        .sk-search-clear { position: absolute; right: 5px; cursor: pointer; color: #999; font-size: 1.1em; display: none; }
+        .sk-search-clear:hover { color: #dc3545; }
         
         .sidekick-content { flex: 1; overflow-y: auto; padding: 10px; background: #fff; border-radius: 0 0 10px 10px; min-height: 50px; }
         .sk-item { padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px; cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; background: #fff; transition: 0.2s; }
@@ -111,7 +117,7 @@
 <body>
 
     <h1>Image Map</h1>
-    <div class="subtitle">RTM列表修復、自動存檔、RTM ID</div>
+    <div class="subtitle">列表防呆修復/搜尋優化</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -155,7 +161,10 @@
                 <span id="skTitle">項目列表 (0)</span>
                 <span class="sidekick-toggle" onclick="toggleSidekick()" title="最小化">➖</span>
             </div>
-            <input type="text" id="searchInput" class="sk-search" placeholder="🔍 搜尋標題或 ID..." oninput="filterShapes(this.value)">
+            <div class="sk-search-wrapper">
+                <input type="text" id="searchInput" class="sk-search" placeholder="🔍 搜尋標題/ID..." oninput="filterShapes(this.value)">
+                <span id="searchClearBtn" class="sk-search-clear" onclick="clearSearch()" title="清除搜尋">×</span>
+            </div>
         </div>
         <div class="sidekick-content" id="sidekickList">
             <div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>
@@ -315,12 +324,12 @@
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
         let tempAttributes = {}; 
-        const AUTOSAVE_KEY = 'imgMap_v35_autosave'; // Versioned key
+        const AUTOSAVE_KEY = 'imgMap_v36_autosave'; 
 
         // --- Init ---
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V35 修復版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V36 修復版)", 300, 250);
         loadPresets();
         checkAutoSave();
 
@@ -510,16 +519,22 @@
 
         function toggleSidekick() { sidekickPanel.classList.toggle('minimized'); const btn = sidekickPanel.querySelector('.sidekick-toggle'); if(sidekickPanel.classList.contains('minimized')) { btn.innerText = "➕"; skTitle.innerText = ""; } else { btn.innerText = "➖"; renderSidekick(); } }
         
-        // V35 FIX: Safe Render Sidekick
+        // V36 FIX: Safe Render Sidekick with Empty State and Clear Btn
         function renderSidekick() {
             sidekickList.innerHTML = ''; skTitle.innerText = `項目列表 (${shapes.length})`;
             
-            // V35 FIX: Safe Check for Search Input
             const searchEl = document.getElementById('searchInput');
+            const clearBtn = document.getElementById('searchClearBtn');
             const filter = searchEl ? searchEl.value.toLowerCase() : '';
 
-            if(shapes.length === 0) { sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>'; return; }
+            // Toggle clear button
+            if(clearBtn) clearBtn.style.display = filter ? 'block' : 'none';
+
+            if(shapes.length === 0) { 
+                sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>'; return; 
+            }
             
+            let visibleCount = 0;
             shapes.forEach((s, idx) => {
                 const title = s.title || "未命名";
                 const rtmId = s.rtmId || "";
@@ -527,6 +542,7 @@
                 if(filter && !title.toLowerCase().includes(filter) && !rtmId.toLowerCase().includes(filter)) {
                     return; 
                 }
+                visibleCount++;
 
                 const item = document.createElement('div'); 
                 item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
@@ -546,9 +562,15 @@
                     </div>`;
                 sidekickList.appendChild(item);
             });
+
+            // V36: Show no results message
+            if(visibleCount === 0 && filter) {
+                sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.85em; margin-top:20px;">🔍 查無符合項目<br><a href="#" onclick="clearSearch(); return false;" style="color:#007bff; text-decoration:none;">清除搜尋</a></div>';
+            }
         }
         
         function filterShapes(val) { renderSidekick(); } 
+        function clearSearch() { document.getElementById('searchInput').value = ''; renderSidekick(); }
 
         function focusShape(idx) { focusedShapeIndex = idx; renderSidekick(); redraw(); const c = getShapeCenter(shapes[idx]); const r = canvas.getBoundingClientRect(); window.scrollTo({ top: (window.scrollY + r.top + c.y) - (window.innerHeight/2), left: (window.scrollX + r.left + c.x) - (window.innerWidth/2), behavior: 'smooth' }); }
         function getShapeOrigin(s) { if(s.type==='rect') return {x: Math.min(s.start.x, s.end.x), y: Math.min(s.start.y, s.end.y)}; let minX=Infinity, minY=Infinity; s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); }); return {x:minX, y:minY}; }
@@ -783,7 +805,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v35"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v36"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -887,7 +909,7 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
-                        if(s) s.parentNode.appendChild(s);
+                        // 移除 appendChild 以避免閃爍，因為 V36 的 CSS 已經處理好了
                     }else{
                         s?.classList.remove('hovered');
                         l?.classList.remove('hovered');
@@ -898,7 +920,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v35"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v36"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
