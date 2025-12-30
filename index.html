@@ -3,17 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map</title>
+    <title>Image Map 生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
-        /* --- 1. 核心佈局 --- */
-        body { font-family: "Microsoft JhengHei", -apple-system, sans-serif; background: #f4f6f8; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
-        h1 { color: #333; margin-bottom: 5px; }
-        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; }
+        /* --- 1. 核心佈局 (RWD 優化) --- */
+        body { 
+            font-family: "Microsoft JhengHei", -apple-system, sans-serif; 
+            background: #f4f6f8; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            padding: 20px; 
+            margin: 0; 
+            /* 防止手機版左右晃動 */
+            overflow-x: hidden; 
+            box-sizing: border-box;
+        }
+        h1 { color: #333; margin-bottom: 5px; text-align: center; }
+        .subtitle { color: #666; font-size: 0.9em; margin-bottom: 20px; text-align: center; }
         
-        .main-controls { display: flex; gap: 15px; margin-bottom: 15px; width: 100%; justify-content: center; }
-        .file-group { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; }
-        .toolbar { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: center; z-index: 10; position: sticky; top: 10px; }
+        .main-controls { display: flex; gap: 10px; margin-bottom: 15px; width: 100%; justify-content: center; flex-wrap: wrap; }
+        .file-group { background: white; padding: 10px 20px; border-radius: 50px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center; }
+        
+        .toolbar { 
+            background: white; padding: 10px 20px; border-radius: 50px; 
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1); margin-bottom: 20px; 
+            display: flex; gap: 10px; align-items: center; flex-wrap: wrap; 
+            justify-content: center; z-index: 10; position: sticky; top: 10px; 
+            max-width: 95vw; /* RWD: 不超過視窗寬度 */
+        }
         
         /* --- 2. 按鈕樣式 --- */
         button { padding: 8px 18px; border: 1px solid #ddd; background: #fff; border-radius: 20px; cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap; display: flex; align-items: center; gap: 5px; }
@@ -28,22 +46,51 @@
         button.magic { background: #6f42c1; color: white; border-color: #6f42c1; }
         button.settings { background: #343a40; color: white; border-color: #343a40; }
         button.toggle-view { background: #17a2b8; color: white; border-color: #17a2b8; }
-        
+        button.list-toggle-btn { background: #6f42c1; color: white; border-color: #6f42c1; }
+        button.list-toggle-btn.off { background: #fff; color: #6f42c1; }
         button.attr-btn { padding: 4px 10px; font-size: 0.85em; border-radius: 15px; background: #e9ecef; border: 1px solid #ced4da; }
         button.attr-btn:hover { background: #dee2e6; border-color: #adb5bd; }
 
-        /* --- 3. 畫布區域 --- */
-        #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; background: #ddd; min-width: 600px; min-height: 400px; margin-bottom: 50px; }
-        canvas { display: block; cursor: crosshair; }
-        input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
+        /* --- 3. 畫布區域 (RWD 核心) --- */
+        #canvas-wrapper { 
+            position: relative; 
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15); 
+            border: 4px solid white; 
+            border-radius: 4px; 
+            background: #ddd; 
+            /* RWD: 取消固定寬度，改用最大寬度限制 */
+            width: auto;
+            max-width: 98vw; 
+            min-height: 300px; /* 至少有點高度 */
+            margin-bottom: 50px; 
+            overflow: hidden; /* 防止溢出 */
+        }
+        canvas { 
+            display: block; 
+            cursor: crosshair; 
+            /* RWD: 讓 Canvas 圖片能夠隨視窗縮小 */
+            max-width: 100%; 
+            height: auto; 
+        }
+        input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 150px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 (Sidekick) - V37 修復 --- */
-        .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
+        /* --- 4. 懸浮清單 (Sidekick) --- */
+        .sidekick-panel { 
+            position: fixed; right: 20px; top: 100px; width: 260px; 
+            background: white; border-radius: 10px; 
+            box-shadow: 0 5px 20px rgba(0,0,0,0.15); 
+            border: 1px solid #eee; z-index: 100; 
+            display: flex; flex-direction: column; max-height: 70vh; 
+            transition: opacity 0.2s;
+        }
+        .sidekick-panel.hidden { display: none !important; }
         
         .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
         .sk-head-row { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: move; }
-        .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
+        .sk-close-btn { cursor: pointer; padding: 0 5px; color: #999; font-size:1.2em; line-height:1; }
+        .sk-close-btn:hover { color: #dc3545; }
+
         .sk-search-wrapper { position: relative; display: flex; align-items: center; }
         .sk-search { width: 100%; padding: 6px 25px 6px 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
         .sk-search:focus { border-color: #007bff; outline: none; }
@@ -59,49 +106,26 @@
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .rtm-tag { font-size: 0.75em; background: #eee; padding: 1px 4px; border-radius: 3px; color: #666; margin-left: 5px; }
 
-        /* V37 關鍵修復：最小化樣式重構 */
-        .sidekick-panel.minimized { 
-            width: 50px; height: 50px; 
-            border-radius: 50%; 
-            top: auto; bottom: 20px; right: 20px; 
-            overflow: hidden; 
-            padding: 0;
-            display: flex; align-items: center; justify-content: center;
-            cursor: pointer;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
-            background: white;
-        }
-        /* 最小化時隱藏這些元素 */
-        .sidekick-panel.minimized .sidekick-content,
-        .sidekick-panel.minimized .sk-search-wrapper,
-        .sidekick-panel.minimized #skTitle,
-        .sidekick-panel.minimized .sk-head-row {
-            display: none !important;
-        }
-        /* 最小化時只顯示這個按鈕 */
-        .sidekick-panel.minimized .sidekick-header {
-            background: transparent; border: none; padding: 0; margin: 0;
-            width: 100%; height: 100%;
-            display: flex; align-items: center; justify-content: center;
-        }
-        /* 讓加號按鈕佔滿整個圓圈 */
-        .sidekick-panel.minimized .sidekick-toggle {
-            font-size: 24px; color: #28a745;
-            width: 100%; height: 100%;
-            display: flex; align-items: center; justify-content: center;
-            padding: 0;
-        }
-
-        /* --- 5. Modal 樣式 --- */
+        /* --- 5. Modal 樣式 (RWD 優化) --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
         .editor-modal.show { visibility: visible; opacity: 1; }
-        .editor-card { background: white; width: 550px; padding: 25px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.4); display: flex; flex-direction: column; gap: 15px; transform: scale(0.9); transition: 0.3s; max-height: 95vh; overflow-y: auto; }
+        .editor-card { 
+            background: white; 
+            /* RWD: 使用百分比寬度，但不超過 550px */
+            width: 90%; max-width: 550px; 
+            padding: 25px; border-radius: 12px; 
+            box-shadow: 0 20px 60px rgba(0,0,0,0.4); 
+            display: flex; flex-direction: column; gap: 15px; 
+            transform: scale(0.9); transition: 0.3s; 
+            max-height: 90vh; overflow-y: auto; 
+        }
         .editor-modal.show .editor-card { transform: scale(1); }
         .editor-card h3 { margin: 0 0 10px 0; border-bottom: 1px solid #eee; padding-bottom: 10px; color: #333; }
         
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
         
+        /* Tag Manager Styles */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -111,8 +135,8 @@
         .system-zone { margin-top: 20px; padding-top: 20px; border-top: 2px dashed #eee; }
         .system-stats { font-size: 0.85em; color: #666; margin-bottom: 10px; }
 
-        .status-picker { display: flex; gap: 10px; align-items: center; }
-        .color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
+        .status-picker { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); flex-shrink: 0; }
         .color-opt:hover { transform: scale(1.1); }
         .color-opt.selected { border-color: #333; transform: scale(1.1); }
         
@@ -146,8 +170,8 @@
 </head>
 <body>
 
-    <h1>Image Map</h1>
-    <div class="subtitle">RTM最小化修復</div>
+    <h1>Image Map 生成器</h1>
+    <div class="subtitle">RWD響應式版：自動縮放畫布、彈出視窗優化、固定列表開關</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -177,8 +201,11 @@
         
         <span style="font-size:0.9em; color:#666;">匯出</span>
         <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱">
-        <button class="excel" onclick="downloadRealExcel()">📊 下載 Excel (.xlsx)</button>
+        <button class="excel" onclick="downloadRealExcel()">📊 下載 Excel</button>
         <button class="primary" onclick="downloadPresentation()">📥 下載 HTML</button>
+        
+        <div style="border-left:1px solid #ddd; height:20px; margin: 0 10px;"></div>
+        <button id="btnSidekickToggle" class="list-toggle-btn" onclick="toggleSidekickFromToolbar()">📂 顯示/隱藏列表</button>
     </div>
 
     <div id="canvas-wrapper">
@@ -189,7 +216,7 @@
         <div class="sidekick-header">
             <div class="sk-head-row">
                 <span id="skTitle">項目列表 (0)</span>
-                <span class="sidekick-toggle" onclick="toggleSidekick()" title="切換顯示">➖</span>
+                <span class="sk-close-btn" onclick="toggleSidekickFromToolbar()" title="關閉">×</span>
             </div>
             <div class="sk-search-wrapper">
                 <input type="text" id="searchInput" class="sk-search" placeholder="🔍 搜尋標題/ID..." oninput="filterShapes(this.value)">
@@ -337,13 +364,13 @@
         const presetList = document.getElementById('presetList');
         const btnToggleLabel = document.getElementById('btnToggleLabel');
         const attrList = document.getElementById('attrList'); 
+        const btnSidekickToggle = document.getElementById('btnSidekickToggle'); 
         
         const refImgGroup = document.getElementById('refImgGroup');
         const refImgPreview = document.getElementById('refImgPreview');
         const refImgPreviewContainer = document.getElementById('refImgPreviewContainer');
         const refImgPlaceholder = document.getElementById('refImgPlaceholder');
 
-        // State Variables
         let focusedShapeIndex = -1;
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
@@ -354,12 +381,12 @@
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
         let tempAttributes = {}; 
-        const AUTOSAVE_KEY = 'imgMap_v37_autosave'; 
+        const AUTOSAVE_KEY = 'imgMap_v39_autosave'; 
 
         // --- Init ---
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V37 UI修復版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V39 RWD版)", 300, 250);
         loadPresets();
         checkAutoSave();
 
@@ -385,7 +412,7 @@
                 loadImage(event.target.result); 
                 shapes = []; globalNote = ""; 
                 fileNameInput.value = file.name.split('.')[0]; 
-                document.getElementById('searchInput').value = ''; // V37: Clear search
+                document.getElementById('searchInput').value = ''; 
                 renderSidekick(); saveToLocal(); 
             };
             reader.readAsDataURL(file);
@@ -403,7 +430,7 @@
                         shapes = data.shapes; globalNote = data.globalNote || "";
                         loadImage(data.imgData);
                         fileNameInput.value = file.name.split('.')[0];
-                        document.getElementById('searchInput').value = ''; // V37: Clear search on import
+                        document.getElementById('searchInput').value = ''; 
                         renderSidekick();
                         saveToLocal();
                         alert("專案已還原！");
@@ -414,10 +441,13 @@
             importInput.value = '';
         });
 
-        // --- Core Functions ---
         function loadImage(src) {
             originalImageDataUrl = src;
-            image.onload = () => { canvas.width = image.width; canvas.height = image.height; redraw(); };
+            image.onload = () => { 
+                canvas.width = image.width; 
+                canvas.height = image.height; 
+                redraw(); 
+            };
             image.src = src;
         }
 
@@ -479,7 +509,17 @@
         function deletePreset(idx) { if(confirm("刪除此標籤？")) { tagPresets.splice(idx, 1); savePresets(); renderPresetList(); openTagManager(); } }
 
         function setTool(t) { tool = t; document.getElementById('btnRect').classList.toggle('active', t === 'rect'); document.getElementById('btnPoly').classList.toggle('active', t === 'poly'); currentShape = null; redraw(); }
-        function getPos(e) { const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; }
+        
+        // RWD getPos: Canvas visual width vs internal width
+        function getPos(e) { 
+            const rect = canvas.getBoundingClientRect(); 
+            const scaleX = canvas.width / rect.width; 
+            const scaleY = canvas.height / rect.height; 
+            return { 
+                x: (e.clientX - rect.left) * scaleX, 
+                y: (e.clientY - rect.top) * scaleY 
+            }; 
+        }
         
         canvas.addEventListener('mousedown', (e) => { 
             if (!image.src) return; 
@@ -554,19 +594,20 @@
             alert("已產生圖例");
         }
 
-        function toggleSidekick() { 
-            sidekickPanel.classList.toggle('minimized'); 
-            const btn = sidekickPanel.querySelector('.sidekick-toggle');
+        function toggleSidekickFromToolbar() { 
+            const panel = document.getElementById('sidekickPanel');
+            const btn = document.getElementById('btnSidekickToggle');
+            const isHidden = panel.classList.contains('hidden');
             
-            if(sidekickPanel.classList.contains('minimized')) {
-                btn.innerText = "➕";
+            if(isHidden) {
+                panel.classList.remove('hidden');
+                btn.classList.remove('off');
             } else {
-                btn.innerText = "➖";
-                renderSidekick();
+                panel.classList.add('hidden');
+                btn.classList.add('off');
             }
         }
         
-        // V37 FIX: Safe Render Sidekick with Empty State and Clear Btn
         function renderSidekick() {
             sidekickList.innerHTML = ''; skTitle.innerText = `項目列表 (${shapes.length})`;
             
@@ -644,11 +685,9 @@
                 const bx = origin.x; 
                 ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI*2); ctx.fillStyle = "#333"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth=2; ctx.stroke();
                 ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; ctx.fillText(idx+1, bx, by+4);
-                
                 if (shouldShowLabel) {
                     let titleText = s.title;
                     if(s.rtmId) titleText = `[${s.rtmId}] ` + titleText; 
-
                     ctx.font="14px sans-serif"; const tm=ctx.measureText(titleText); const hasS=!!s.statusColor; const pd=hasS?25:12; const bw=tm.width+pd;
                     const labelX = bx + 15; const labelY = by; 
                     ctx.fillStyle = act ? "rgba(250, 173, 20, 0.9)" : "rgba(40, 167, 69, 0.85)"; 
@@ -683,18 +722,15 @@
             keys.forEach((key, index) => {
                 const div = document.createElement('div');
                 div.className = 'attr-row';
-                
                 let listAttr = "";
                 if(key.includes("優先") || key.toLowerCase().includes("priority")) listAttr = 'list="attr-priority"';
                 if(key.includes("類型") || key.toLowerCase().includes("type")) listAttr = 'list="attr-type"';
-
                 div.innerHTML = `
                     <div class="attr-key">${key}：</div>
                     <input type="text" class="attr-val" value="${tempAttributes[key]}" ${listAttr} oninput="updateAttrValue('${key}', this.value)">
                     <span class="attr-del" onclick="removeAttr('${key}')">×</span>
                 `;
                 attrList.appendChild(div);
-                
                 if (focusLast && index === keys.length - 1) {
                     setTimeout(() => div.querySelector('input').focus(), 50);
                 }
@@ -726,7 +762,6 @@
         function duplicateShape() {
             if(!tempShape) return;
             const newShape = JSON.parse(JSON.stringify(tempShape));
-            
             newShape.rtmId = inputRtmId.value ? inputRtmId.value + "-COPY" : ""; 
             newShape.title = inputTitle.value + " (複製)";
             newShape.desc = inputDesc.value.replace(/\n/g, '<br>');
@@ -734,7 +769,6 @@
             newShape.statusColor = inputStatusColor.value;
             newShape.attributes = JSON.parse(JSON.stringify(tempAttributes));
             newShape.refImage = tempRefImgBase64;
-            
             shapes.push(newShape); focusedShapeIndex = shapes.length - 1;
             modal.classList.remove('show'); renderSidekick(); redraw(); saveToLocal();
             setTimeout(() => { openEditor(shapes[focusedShapeIndex], focusedShapeIndex); }, 300);
@@ -804,7 +838,6 @@
             });
 
             ws.columns = columns;
-            
             ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
 
             for (let i = 0; i < shapes.length; i++) {
@@ -821,11 +854,9 @@
                     status:s.statusText, 
                     desc: cleanDesc 
                 };
-                
                 sortedKeys.forEach(key => {
                     rowData['attr_' + key] = (s.attributes && s.attributes[key]) ? s.attributes[key] : "";
                 });
-
                 row.values = rowData;
                 row.height = 100;
                 
@@ -850,7 +881,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v37"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v39"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -954,7 +985,7 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
-                        // 移除 appendChild 以避免閃爍，因為 V37 的 CSS 已經處理好了
+                        // 移除 appendChild 以避免閃爍，因為 V39 的 CSS 已經處理好了
                     }else{
                         s?.classList.remove('hovered');
                         l?.classList.remove('hovered');
@@ -965,7 +996,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v37"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v39"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
