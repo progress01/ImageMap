@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器 V32 (有感優化版)</title>
+    <title>Image Map 生成器</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 --- */
@@ -28,6 +28,9 @@
         button.magic { background: #6f42c1; color: white; border-color: #6f42c1; }
         button.settings { background: #343a40; color: white; border-color: #343a40; }
         button.toggle-view { background: #17a2b8; color: white; border-color: #17a2b8; }
+        
+        button.attr-btn { padding: 4px 10px; font-size: 0.85em; border-radius: 15px; background: #e9ecef; border: 1px solid #ced4da; }
+        button.attr-btn:hover { background: #dee2e6; border-color: #adb5bd; }
 
         /* --- 3. 畫布區域 --- */
         #canvas-wrapper { position: relative; box-shadow: 0 10px 30px rgba(0,0,0,0.15); border: 4px solid white; border-radius: 4px; background: #ddd; min-width: 600px; min-height: 400px; margin-bottom: 50px; }
@@ -35,18 +38,24 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 --- */
-        .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 240px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
+        /* --- 4. 懸浮清單 (Sidekick) --- */
+        .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
         .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
-        .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; display: flex; justify-content: space-between; align-items: center; font-weight: bold; color: #555; font-size: 0.9em; cursor: move; }
+        .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px;}
+        .sk-head-row { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: move; }
         .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
+        /* V34 搜尋框 */
+        .sk-search { width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
+        
         .sidekick-content { flex: 1; overflow-y: auto; padding: 10px; background: #fff; border-radius: 0 0 10px 10px; }
-        .sk-item { padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px; cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; background: #fff; }
+        .sk-item { padding: 8px 10px; border: 1px solid #eee; margin-bottom: 6px; border-radius: 6px; cursor: pointer; font-size: 0.9em; border-left: 3px solid transparent; display: flex; justify-content: space-between; align-items: center; background: #fff; transition: 0.2s; }
         .sk-item:hover { background: #f4f6f8; }
         .sk-item.active { border-left-color: #28a745; background: #e8f5e9; border-color: #c3e6cb; }
+        .sk-item.hidden { display: none; }
         .sk-actions { display: flex; gap: 4px; }
         .sk-btn { font-size: 0.8em; padding: 2px 6px; border: 1px solid #ddd; background: #fff; border-radius: 4px; cursor: pointer; }
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+        .rtm-tag { font-size: 0.75em; background: #eee; padding: 1px 4px; border-radius: 3px; color: #666; margin-left: 5px; }
 
         /* --- 5. Modal 樣式 --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
@@ -58,7 +67,7 @@
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
         
-        /* 標籤管理與系統維護 */
+        /* V34 Tag Manager Styles */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -68,41 +77,32 @@
         .system-zone { margin-top: 20px; padding-top: 20px; border-top: 2px dashed #eee; }
         .system-stats { font-size: 0.85em; color: #666; margin-bottom: 10px; }
 
-        /* 顏色選擇器 */
         .status-picker { display: flex; gap: 10px; align-items: center; }
         .color-opt { width: 24px; height: 24px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; transition: 0.2s; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.1); }
         .color-opt:hover { transform: scale(1.1); }
         .color-opt.selected { border-color: #333; transform: scale(1.1); }
         
-        /* 快速標籤 */
         .quick-tags { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 10px; min-height: 30px; }
         .tag-chip { font-size: 0.85em; padding: 6px 12px; border-radius: 20px; cursor: pointer; border: 1px solid #eee; transition: 0.2s; display: flex; align-items: center; gap: 5px; background: #fff; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
         .tag-chip:hover { transform: translateY(-1px); box-shadow: 0 4px 8px rgba(0,0,0,0.1); border-color: #28a745; }
         .tag-dot { width: 10px; height: 10px; border-radius: 50%; border: 1px solid rgba(0,0,0,0.1); }
 
-        /* V32 優化：加大 Textarea */
         .textarea-container { position: relative; }
-        textarea { 
-            width: 100%; 
-            height: 220px; /* 大幅增加高度 */
-            padding: 12px; 
-            padding-top: 45px; 
-            border: 1px solid #ddd; 
-            border-radius: 6px; 
-            resize: vertical; 
-            font-family: inherit; 
-            line-height: 1.6; 
-            box-sizing: border-box; 
-            font-size: 1em; 
-        }
+        textarea { width: 100%; height: 150px; padding: 12px; padding-top: 45px; border: 1px solid #ddd; border-radius: 6px; resize: vertical; font-family: inherit; line-height: 1.6; box-sizing: border-box; font-size: 1em; }
         .textarea-toolbar { position: absolute; top: 1px; left: 1px; right: 1px; background: #f8f9fa; border-bottom: 1px solid #ddd; padding: 6px; border-radius: 6px 6px 0 0; display: flex; gap: 8px; align-items: center; }
         .tool-btn { font-size: 0.85em; padding: 4px 10px; background: #fff; border: 1px solid #ccc; border-radius: 4px; display: flex; align-items: center; gap: 5px; cursor: pointer; }
-        .tips { font-size: 0.8em; color: #888; margin-left: auto; }
         
         .ref-img-zone { border: 2px dashed #ddd; border-radius: 6px; padding: 10px; text-align: center; cursor: pointer; transition: 0.2s; background: #fafafa; }
         .ref-img-zone:hover { border-color: #007bff; background: #f0f7ff; }
         .ref-img-preview { max-width: 100%; max-height: 150px; border-radius: 4px; margin-top: 10px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
         .ref-actions { display: flex; justify-content: center; gap: 10px; margin-top: 5px; }
+
+        .attr-list { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; padding: 10px; background: #f1f3f5; border-radius: 6px; }
+        .attr-row { display: flex; gap: 8px; align-items: center; }
+        .attr-key { width: 30%; font-weight: bold; font-size: 0.9em; color: #555; text-align: right; }
+        .attr-val { flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; font-size: 0.9em; }
+        .attr-del { color: #dc3545; cursor: pointer; font-weight: bold; padding: 0 5px; }
+        .attr-quick-add { margin-top: 5px; display: flex; gap: 5px; flex-wrap: wrap; }
 
         .modal-footer { display: flex; justify-content: space-between; margin-top: 10px; border-top: 1px solid #eee; padding-top: 15px;}
         .footer-right { display: flex; gap: 10px; }
@@ -112,22 +112,24 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V32</h1>
-    <div class="subtitle">有感優化版：大尺寸 Excel 報表、文字靠上對齊、編輯器加大</div>
+    <h1>Image Map 生成器</h1>
+    <div class="subtitle">RTM自動存檔、RTM ID、資料一致性、搜尋過濾</div>
 
     <div class="main-controls">
         <div class="file-group">
-            <span style="font-size:0.9em; color:#666;">步驟 1: 新增或還原</span>
-            <button onclick="document.getElementById('imgInput').click()">🖼️ 上傳新圖片</button>
+            <span style="font-size:0.9em; color:#666;">檔案操作</span>
+            <button onclick="document.getElementById('imgInput').click()">🖼️ 上傳圖片</button>
             <input type="file" id="imgInput" accept="image/*" style="display:none">
             <div style="border-left:1px solid #ddd; height:20px;"></div>
             <button class="info" onclick="document.getElementById('importInput').click()">📂 匯入舊檔</button>
             <input type="file" id="importInput" accept=".html" style="display:none">
+            <div style="border-left:1px solid #ddd; height:20px;"></div>
+            <button class="danger" style="font-size:0.8em; padding: 6px 12px;" onclick="clearAutoSave()">🗑️ 清除快取</button>
         </div>
     </div>
 
     <div class="toolbar">
-        <span style="font-size:0.9em; color:#666;">步驟 2: 繪製</span>
+        <span style="font-size:0.9em; color:#666;">繪製工具</span>
         <button id="btnRect" class="active" onclick="setTool('rect')">畫矩形</button>
         <button id="btnPoly" onclick="setTool('poly')">畫多邊形</button>
         <button class="settings" onclick="openTagManager()">⚙️ 設定標籤</button>
@@ -135,11 +137,11 @@
         
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         <button class="note" onclick="editGlobalNote()">📝 專案筆記</button>
-        <button onclick="undo()" title="快捷鍵 Ctrl+Z">復原</button>
+        <button onclick="undo()" title="Ctrl+Z">復原</button>
         <button class="danger" onclick="clearAll()">清除</button>
         <div style="border-left:1px solid #ddd; height:20px;"></div>
         
-        <span style="font-size:0.9em; color:#666;">步驟 3: 匯出</span>
+        <span style="font-size:0.9em; color:#666;">匯出</span>
         <input type="text" id="fileNameInput" class="filename-input" placeholder="檔案名稱">
         <button class="excel" onclick="downloadRealExcel()">📊 下載 Excel (.xlsx)</button>
         <button class="primary" onclick="downloadPresentation()">📥 下載 HTML</button>
@@ -151,8 +153,11 @@
 
     <div class="sidekick-panel" id="sidekickPanel">
         <div class="sidekick-header">
-            <span id="skTitle">項目列表 (0)</span>
-            <span class="sidekick-toggle" onclick="toggleSidekick()" title="最小化">➖</span>
+            <div class="sk-head-row">
+                <span id="skTitle">項目列表 (0)</span>
+                <span class="sidekick-toggle" onclick="toggleSidekick()" title="最小化">➖</span>
+            </div>
+            <input type="text" id="searchInput" class="sk-search" placeholder="🔍 搜尋標題或 ID..." oninput="filterShapes(this.value)">
         </div>
         <div class="sidekick-content" id="sidekickList">
             <div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>
@@ -162,15 +167,23 @@
     <div class="editor-modal" id="editorModal">
         <div class="editor-card">
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
-            <div id="titleGroup">
-                <label>標題</label>
-                <input type="text" id="inputTitle" placeholder="例如：首頁 Banner (必填)">
+            
+            <div style="display:flex; gap:10px;">
+                <div style="flex:2;">
+                    <label>RTM ID (唯一識別碼)</label>
+                    <input type="text" id="inputRtmId" placeholder="例如：REQ-001" style="border-color:#17a2b8;">
+                </div>
+                <div style="flex:3;">
+                    <label>標題 (必填)</label>
+                    <input type="text" id="inputTitle" placeholder="功能名稱...">
+                </div>
             </div>
-            <div id="statusGroup">
+
+            <div id="statusGroup" style="margin-top:10px;">
                 <label>標籤</label>
                 <div class="quick-tags" id="quickTagsArea"></div>
                 <div class="status-picker">
-                    <input type="text" id="inputStatusText" placeholder="標籤名稱..." style="flex:1;">
+                    <input type="text" id="inputStatusText" placeholder="狀態..." style="flex:1;">
                     <div class="color-opt" style="background:#dc3545;" onclick="selectColor('#dc3545')" title="紅色"></div>
                     <div class="color-opt" style="background:#ffc107;" onclick="selectColor('#ffc107')" title="黃色"></div>
                     <div class="color-opt" style="background:#28a745;" onclick="selectColor('#28a745')" title="綠色"></div>
@@ -179,20 +192,36 @@
                 </div>
                 <input type="hidden" id="inputStatusColor" value="">
             </div>
-            <div>
+            
+            <div style="margin-top:10px;">
                 <label>詳細內容 (支援多行)</label>
                 <div class="textarea-container">
                     <div class="textarea-toolbar">
                         <button class="tool-btn" onclick="addHighlight()">🖍️ 重點</button>
                         <button id="btnGenLegend" class="tool-btn magic hidden" onclick="generateLegendToNote()">✨ 產生圖例</button>
                     </div>
-                    <textarea id="inputDesc" placeholder="1. 項目一&#10;2. 項目二&#10;3. 項目三"></textarea>
+                    <textarea id="inputDesc" placeholder="請輸入問題描述或需求說明..."></textarea>
                 </div>
             </div>
-            <div id="refImgGroup">
-                <label>參考圖片 (Mockup / 對照圖)</label>
+
+            <div style="border-top: 1px dashed #ddd; margin-top: 10px; padding-top: 10px;">
+                <label style="color:#28a745;">📊 Excel 專用屬性 (RTM 矩陣)</label>
+                <div style="font-size:0.8em; color:#888; margin-bottom:5px;">使用預設選項確保資料整潔，或新增自定義屬性。</div>
+                
+                <div class="attr-quick-add">
+                    <button class="attr-btn" onclick="addAttr('需求類型')">+ 需求類型</button>
+                    <button class="attr-btn" onclick="addAttr('優先級')">+ 優先級</button>
+                    <button class="attr-btn" onclick="addAttr('對應條文')">+ 對應條文</button>
+                    <button class="attr-btn" onclick="addAttr('')">+ 自定義</button>
+                </div>
+                
+                <div class="attr-list" id="attrList"></div>
+            </div>
+
+            <div id="refImgGroup" style="margin-top:10px;">
+                <label>參考圖片</label>
                 <div class="ref-img-zone" onclick="document.getElementById('inputRefImg').click()">
-                    <span id="refImgPlaceholder" style="color:#888; font-size:0.9em;">➕ 點擊上傳圖片 (自動壓縮)</span>
+                    <span id="refImgPlaceholder" style="color:#888; font-size:0.9em;">➕ 上傳參考圖 (自動壓縮)</span>
                     <input type="file" id="inputRefImg" accept="image/*" style="display:none" onchange="handleRefImg(this)">
                     <div id="refImgPreviewContainer" class="hidden">
                         <img id="refImgPreview" class="ref-img-preview" src="">
@@ -202,9 +231,10 @@
                     </div>
                 </div>
             </div>
+
             <div class="modal-footer">
                 <div id="duplicateBtnGroup">
-                    <button class="duplicate" type="button" onclick="duplicateShape()">📋 原地複製</button>
+                    <button class="duplicate" type="button" onclick="duplicateShape()">📋 原地複製 (另存新檔)</button>
                 </div>
                 <div class="footer-right">
                     <button onclick="cancelModal()">取消</button>
@@ -232,6 +262,19 @@
         </div>
     </div>
 
+    <datalist id="attr-priority">
+        <option value="P0 - Critical (緊急)">
+        <option value="P1 - High (高)">
+        <option value="P2 - Medium (中)">
+        <option value="P3 - Low (低)">
+    </datalist>
+    <datalist id="attr-type">
+        <option value="Feature (新功能)">
+        <option value="Bug (錯誤修復)">
+        <option value="Optimization (優化)">
+        <option value="Spec Change (規格變更)">
+    </datalist>
+
     <script>
         const canvas = document.getElementById('editorCanvas');
         const ctx = canvas.getContext('2d');
@@ -240,6 +283,7 @@
         
         const modal = document.getElementById('editorModal');
         const tagManagerModal = document.getElementById('tagManagerModal');
+        const inputRtmId = document.getElementById('inputRtmId'); // V34
         const inputTitle = document.getElementById('inputTitle');
         const inputDesc = document.getElementById('inputDesc');
         const inputStatusText = document.getElementById('inputStatusText');
@@ -256,12 +300,14 @@
         const newTagColor = document.getElementById('newTagColor');
         const presetList = document.getElementById('presetList');
         const btnToggleLabel = document.getElementById('btnToggleLabel');
+        const attrList = document.getElementById('attrList'); 
         
         const refImgGroup = document.getElementById('refImgGroup');
         const refImgPreview = document.getElementById('refImgPreview');
         const refImgPreviewContainer = document.getElementById('refImgPreviewContainer');
         const refImgPlaceholder = document.getElementById('refImgPlaceholder');
 
+        // State Variables
         let focusedShapeIndex = -1;
         let image = new Image();
         let shapes = []; let currentShape = null; let tempShape = null; 
@@ -271,12 +317,18 @@
         let tempRefImgBase64 = "";
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
+        let tempAttributes = {}; 
+        // V34: Auto-save Key
+        const AUTOSAVE_KEY = 'imgMap_v34_autosave';
 
+        // --- Init ---
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V32 有感優化版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V34 RTM 旗艦版)", 300, 250);
         loadPresets();
+        checkAutoSave(); // V34 Check on load
 
+        // --- Event Listeners ---
         document.addEventListener('keydown', (e) => {
             if (modal.classList.contains('show') || tagManagerModal.classList.contains('show')) return;
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
@@ -288,16 +340,13 @@
                 if (isDrawing) { isDrawing = false; currentShape = null; redraw(); } 
                 else if (focusedShapeIndex !== -1) { focusedShapeIndex = -1; renderSidekick(); redraw(); }
             }
-            if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
-                e.preventDefault();
-                undo();
-            }
+            if ((e.ctrlKey || e.metaKey) && e.key === 'z') { e.preventDefault(); undo(); }
         });
 
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
-            reader.onload = (event) => { loadImage(event.target.result); shapes = []; globalNote = ""; fileNameInput.value = file.name.split('.')[0]; renderSidekick(); };
+            reader.onload = (event) => { loadImage(event.target.result); shapes = []; globalNote = ""; fileNameInput.value = file.name.split('.')[0]; renderSidekick(); saveToLocal(); };
             reader.readAsDataURL(file);
         });
 
@@ -314,6 +363,7 @@
                         loadImage(data.imgData);
                         fileNameInput.value = file.name.split('.')[0];
                         renderSidekick();
+                        saveToLocal();
                         alert("專案已還原！");
                     }
                 } catch(e) { alert("讀取失敗"); }
@@ -322,12 +372,55 @@
             importInput.value = '';
         });
 
+        // --- Core Functions ---
         function loadImage(src) {
             originalImageDataUrl = src;
             image.onload = () => { canvas.width = image.width; canvas.height = image.height; redraw(); };
             image.src = src;
         }
 
+        // --- Auto Save System (V34) ---
+        function saveToLocal() {
+            if(!originalImageDataUrl) return;
+            const data = {
+                imgData: originalImageDataUrl,
+                shapes: shapes,
+                globalNote: globalNote,
+                fileName: fileNameInput.value,
+                timestamp: new Date().getTime()
+            };
+            localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+        }
+
+        function checkAutoSave() {
+            const dataStr = localStorage.getItem(AUTOSAVE_KEY);
+            if(dataStr) {
+                try {
+                    const data = JSON.parse(dataStr);
+                    // Check if data is valid and not empty
+                    if(data.imgData && (data.shapes.length > 0 || data.globalNote)) {
+                        if(confirm(`發現未儲存的草稿 (${new Date(data.timestamp).toLocaleString()})，是否還原？`)) {
+                            loadImage(data.imgData);
+                            shapes = data.shapes;
+                            globalNote = data.globalNote;
+                            fileNameInput.value = data.fileName || "restored_project";
+                            renderSidekick();
+                        } else {
+                            // User chose not to restore, maybe clear it? No, keep it just in case.
+                        }
+                    }
+                } catch(e) { console.error("Auto-save load failed", e); }
+            }
+        }
+
+        function clearAutoSave() {
+            if(confirm("確定要清除瀏覽器快取嗎？此操作無法復原。")) {
+                localStorage.removeItem(AUTOSAVE_KEY);
+                alert("快取已清除。");
+            }
+        }
+
+        // --- Tag Manager ---
         function loadPresets() {
             const saved = localStorage.getItem('imgMapPresets_v25');
             if(saved) { tagPresets = JSON.parse(saved); } else { tagPresets = [ { name: '嚴重 Bug', color: '#dc3545' }, { name: '功能優化', color: '#ffc107' }, { name: '已完成', color: '#28a745' } ]; }
@@ -348,10 +441,36 @@
         function addPresetTag() { const name = newTagName.value.trim(); const color = newTagColor.value; if(!name) return; tagPresets.push({ name, color }); savePresets(); newTagName.value = ''; renderPresetList(); openTagManager(); }
         function deletePreset(idx) { if(confirm("刪除此標籤？")) { tagPresets.splice(idx, 1); savePresets(); renderPresetList(); openTagManager(); } }
 
+        // --- Drawing Logic ---
         function setTool(t) { tool = t; document.getElementById('btnRect').classList.toggle('active', t === 'rect'); document.getElementById('btnPoly').classList.toggle('active', t === 'poly'); currentShape = null; redraw(); }
         function getPos(e) { const rect = canvas.getBoundingClientRect(); const scaleX = canvas.width / rect.width; const scaleY = canvas.height / rect.height; return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY }; }
-        canvas.addEventListener('mousedown', (e) => { if (!image.src) return; if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } const pos = getPos(e); if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } redraw(); });
-        canvas.addEventListener('mousemove', (e) => { if (!image.src) return; const pos = getPos(e); lastMousePos = pos; if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } else if (!isDrawing) { redraw(); }});
+        
+        canvas.addEventListener('mousedown', (e) => { 
+            if (!image.src) return; 
+            if(focusedShapeIndex !== -1 && !isDrawing) { focusedShapeIndex = -1; renderSidekick(); redraw(); } 
+            const pos = getPos(e); 
+            if (tool === 'rect') { isDrawing = true; currentShape = { type: 'rect', start: pos, end: pos }; } 
+            else if (tool === 'poly') { if (!currentShape) currentShape = { type: 'poly', points: [pos] }; else currentShape.points.push(pos); } 
+            redraw(); 
+        });
+        
+        canvas.addEventListener('mousemove', (e) => { 
+            if (!image.src) return; 
+            const pos = getPos(e); 
+            lastMousePos = pos; 
+            
+            // V34: Hover sync
+            const hoverIdx = shapes.findIndex(s => isMouseOverShape(s, pos));
+            if(hoverIdx !== -1) {
+                const listItem = document.getElementById(`sk-item-${hoverIdx}`);
+                if(listItem) listItem.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+
+            if (tool === 'rect' && isDrawing) { currentShape.end = pos; redraw(); } 
+            else if (tool === 'poly' && currentShape) { redraw(); ctx.beginPath(); const last = currentShape.points[currentShape.points.length - 1]; ctx.moveTo(last.x, last.y); ctx.lineTo(pos.x, pos.y); ctx.strokeStyle = '#ff0055'; ctx.lineWidth = 2; ctx.stroke(); } 
+            else if (!isDrawing) { redraw(); }
+        });
+        
         canvas.addEventListener('mouseup', (e) => { if (tool === 'rect' && isDrawing) { isDrawing = false; if(Math.abs(currentShape.start.x - currentShape.end.x) > 10) openEditor(currentShape, -1); currentShape = null; redraw(); } });
         canvas.addEventListener('dblclick', (e) => { if (tool === 'poly' && currentShape && currentShape.points.length > 2) { openEditor(currentShape, -1); currentShape = null; redraw(); } });
         function selectColor(color) { inputStatusColor.value = color; document.querySelectorAll('.color-opt').forEach(el => { el.classList.toggle('selected', el.getAttribute('style').includes(color)); }); }
@@ -401,57 +520,51 @@
         }
 
         function toggleSidekick() { sidekickPanel.classList.toggle('minimized'); const btn = sidekickPanel.querySelector('.sidekick-toggle'); if(sidekickPanel.classList.contains('minimized')) { btn.innerText = "➕"; skTitle.innerText = ""; } else { btn.innerText = "➖"; renderSidekick(); } }
+        
+        // V34: Render Sidekick with Search
         function renderSidekick() {
             sidekickList.innerHTML = ''; skTitle.innerText = `項目列表 (${shapes.length})`;
+            const filter = document.getElementById('searchInput').value.toLowerCase();
+
             if(shapes.length === 0) { sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.8em; margin-top:20px;">無項目</div>'; return; }
+            
             shapes.forEach((s, idx) => {
-                const item = document.createElement('div'); item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
+                const title = s.title || "未命名";
+                const rtmId = s.rtmId || "";
+                
+                // V34 Filter Logic
+                if(filter && !title.toLowerCase().includes(filter) && !rtmId.toLowerCase().includes(filter)) {
+                    return; // Skip this item
+                }
+
+                const item = document.createElement('div'); 
+                item.className = `sk-item ${idx === focusedShapeIndex ? 'active' : ''}`;
+                item.id = `sk-item-${idx}`; // For scroll sync
                 item.onclick = () => focusShape(idx);
-                const title = s.title || "未命名"; const dotHtml = s.statusColor ? `<span class="status-dot" style="background:${s.statusColor}"></span>` : '';
-                item.innerHTML = `<div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:120px; font-weight:bold; display:flex; align-items:center;"><span style="color:#999; font-size:0.8em; margin-right:5px;">${idx+1}.</span>${dotHtml}${title}</div><div class="sk-actions"><button class="sk-btn" onclick="event.stopPropagation(); editShape(${idx})">✏️</button><button class="sk-btn" style="color:red;" onclick="event.stopPropagation(); deleteShape(${idx})">🗑️</button></div>`;
+                
+                const dotHtml = s.statusColor ? `<span class="status-dot" style="background:${s.statusColor}"></span>` : '';
+                const rtmHtml = rtmId ? `<span class="rtm-tag">${rtmId}</span>` : '';
+
+                item.innerHTML = `
+                    <div style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:160px; font-weight:bold; display:flex; align-items:center;">
+                        <span style="color:#999; font-size:0.8em; margin-right:5px;">${idx+1}.</span>${dotHtml}${title}${rtmHtml}
+                    </div>
+                    <div class="sk-actions">
+                        <button class="sk-btn" onclick="event.stopPropagation(); editShape(${idx})">✏️</button>
+                        <button class="sk-btn" style="color:red;" onclick="event.stopPropagation(); deleteShape(${idx})">🗑️</button>
+                    </div>`;
                 sidekickList.appendChild(item);
             });
         }
+        
+        function filterShapes(val) { renderSidekick(); } // V34 Trigger
+
         function focusShape(idx) { focusedShapeIndex = idx; renderSidekick(); redraw(); const c = getShapeCenter(shapes[idx]); const r = canvas.getBoundingClientRect(); window.scrollTo({ top: (window.scrollY + r.top + c.y) - (window.innerHeight/2), left: (window.scrollX + r.left + c.x) - (window.innerWidth/2), behavior: 'smooth' }); }
-        
-        function getShapeOrigin(s) { 
-            if(s.type==='rect') return {x: Math.min(s.start.x, s.end.x), y: Math.min(s.start.y, s.end.y)}; 
-            let minX=Infinity, minY=Infinity; 
-            s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); }); 
-            return {x:minX, y:minY}; 
-        }
-        
-        function getShapeCenter(s) { 
-            if(s.type==='rect') return {x:(s.start.x+s.end.x)/2, y:(s.start.y+s.end.y)/2}; 
-            let mx=Infinity, Mx=-Infinity, my=Infinity, My=-Infinity; s.points.forEach(p=>{mx=Math.min(mx,p.x);Mx=Math.max(Mx,p.x);my=Math.min(my,p.y);My=Math.max(My,p.y);}); return {x:(mx+Mx)/2, y:(my+My)/2}; 
-        }
-
-        function toggleLabels() {
-            showFullLabels = !showFullLabels;
-            btnToggleLabel.innerText = showFullLabels ? "👁️ 隱藏部分標籤" : "👁️ 顯示完整標籤";
-            redraw();
-        }
-
-        function isPointInPolygon(p, points) {
-            let inside = false;
-            for (let i = 0, j = points.length - 1; i < points.length; j = i++) {
-                const xi = points[i].x, yi = points[i].y;
-                const xj = points[j].x, yj = points[j].y;
-                const intersect = ((yi > p.y) !== (yj > p.y)) && (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi);
-                if (intersect) inside = !inside;
-            }
-            return inside;
-        }
-
-        function isMouseOverShape(s, mPos) {
-            if(s.type === 'rect') {
-                const minX = Math.min(s.start.x, s.end.x); const maxX = Math.max(s.start.x, s.end.x);
-                const minY = Math.min(s.start.y, s.end.y); const maxY = Math.max(s.start.y, s.end.y);
-                return (mPos.x >= minX && mPos.x <= maxX && mPos.y >= minY && mPos.y <= maxY);
-            } else {
-                return isPointInPolygon(mPos, s.points);
-            }
-        }
+        function getShapeOrigin(s) { if(s.type==='rect') return {x: Math.min(s.start.x, s.end.x), y: Math.min(s.start.y, s.end.y)}; let minX=Infinity, minY=Infinity; s.points.forEach(p=>{ minX=Math.min(minX,p.x); minY=Math.min(minY,p.y); }); return {x:minX, y:minY}; }
+        function getShapeCenter(s) { if(s.type==='rect') return {x:(s.start.x+s.end.x)/2, y:(s.start.y+s.end.y)/2}; let mx=Infinity, Mx=-Infinity, my=Infinity, My=-Infinity; s.points.forEach(p=>{mx=Math.min(mx,p.x);Mx=Math.max(Mx,p.x);my=Math.min(my,p.y);My=Math.max(My,p.y);}); return {x:(mx+Mx)/2, y:(my+My)/2}; }
+        function toggleLabels() { showFullLabels = !showFullLabels; btnToggleLabel.innerText = showFullLabels ? "👁️ 隱藏部分標籤" : "👁️ 顯示完整標籤"; redraw(); }
+        function isPointInPolygon(p, points) { let inside = false; for (let i = 0, j = points.length - 1; i < points.length; j = i++) { const xi = points[i].x, yi = points[i].y; const xj = points[j].x, yj = points[j].y; const intersect = ((yi > p.y) !== (yj > p.y)) && (p.x < (xj - xi) * (p.y - yi) / (yj - yi) + xi); if (intersect) inside = !inside; } return inside; }
+        function isMouseOverShape(s, mPos) { if(s.type === 'rect') { const minX = Math.min(s.start.x, s.end.x); const maxX = Math.max(s.start.x, s.end.x); const minY = Math.min(s.start.y, s.end.y); const maxY = Math.max(s.start.y, s.end.y); return (mPos.x >= minX && mPos.x <= maxX && mPos.y >= minY && mPos.y <= maxY); } else { return isPointInPolygon(mPos, s.points); } }
 
         function redraw() {
             ctx.clearRect(0,0,canvas.width,canvas.height); if(image.src) ctx.drawImage(image,0,0); ctx.fillStyle="rgba(0,0,0,0.3)"; ctx.fillRect(0,0,canvas.width,canvas.height);
@@ -465,52 +578,71 @@
 
         function drawShape(s, conf, act, idx=-1, isHover=false) {
             ctx.beginPath(); if(s.type==='rect'){const w=s.end.x-s.start.x,h=s.end.y-s.start.y; ctx.rect(s.start.x,s.start.y,w,h);}else{ctx.moveTo(s.points[0].x,s.points[0].y);for(let p of s.points)ctx.lineTo(p.x,p.y);ctx.closePath();}
-            
             if(conf){
                 ctx.strokeStyle=act?"#FFD700":"#fff"; ctx.lineWidth=act?4:2; ctx.fillStyle=act?"rgba(255,215,0,0.3)":"rgba(255,255,255,0.05)"; ctx.fill(); ctx.stroke();
-
                 const origin = getShapeOrigin(s);
-                let by = origin.y - 10; 
-                if (by < 15) { by = origin.y + 25; } 
-
+                let by = origin.y - 10; if (by < 15) { by = origin.y + 25; } 
                 const shouldShowLabel = showFullLabels || isHover || act;
                 const bx = origin.x; 
-
-                ctx.beginPath(); 
-                ctx.arc(bx, by, 12, 0, Math.PI*2); 
-                ctx.fillStyle = "#333"; ctx.fill(); 
-                ctx.strokeStyle = "#fff"; ctx.lineWidth=2; ctx.stroke();
-                ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; 
-                ctx.fillText(idx+1, bx, by+4);
-
+                ctx.beginPath(); ctx.arc(bx, by, 12, 0, Math.PI*2); ctx.fillStyle = "#333"; ctx.fill(); ctx.strokeStyle = "#fff"; ctx.lineWidth=2; ctx.stroke();
+                ctx.fillStyle = "#fff"; ctx.font = "bold 12px monospace"; ctx.textAlign = "center"; ctx.fillText(idx+1, bx, by+4);
+                
                 if (shouldShowLabel) {
-                    ctx.font="14px sans-serif"; 
-                    const tm=ctx.measureText(s.title); 
-                    const hasS=!!s.statusColor; 
-                    const pd=hasS?25:12; 
-                    const bw=tm.width+pd;
-                    
-                    const labelX = bx + 15;
-                    const labelY = by; 
+                    let titleText = s.title;
+                    if(s.rtmId) titleText = `[${s.rtmId}] ` + titleText; // V34: Show RTM ID on Canvas Label
 
+                    ctx.font="14px sans-serif"; const tm=ctx.measureText(titleText); const hasS=!!s.statusColor; const pd=hasS?25:12; const bw=tm.width+pd;
+                    const labelX = bx + 15; const labelY = by; 
                     ctx.fillStyle = act ? "rgba(250, 173, 20, 0.9)" : "rgba(40, 167, 69, 0.85)"; 
-                    ctx.beginPath(); 
-                    ctx.roundRect(labelX, labelY - 12, bw, 24, 4); 
-                    ctx.fill();
-                    
-                    ctx.textAlign="start";
-                    ctx.fillStyle = "#fff"; 
-                    ctx.shadowColor="rgba(0,0,0,0.5)"; ctx.shadowBlur=2;
-                    ctx.fillText(s.title, labelX + (hasS?20:6), labelY + 5);
-                    ctx.shadowBlur=0;
-
-                    if(hasS){
-                        ctx.beginPath(); ctx.arc(labelX+10, labelY, 4, 0, Math.PI*2); 
-                        ctx.fillStyle=s.statusColor; ctx.fill(); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.lineWidth=1; ctx.stroke();
-                    }
+                    ctx.beginPath(); ctx.roundRect(labelX, labelY - 12, bw, 24, 4); ctx.fill();
+                    ctx.textAlign="start"; ctx.fillStyle = "#fff"; ctx.shadowColor="rgba(0,0,0,0.5)"; ctx.shadowBlur=2;
+                    ctx.fillText(titleText, labelX + (hasS?20:6), labelY + 5); ctx.shadowBlur=0;
+                    if(hasS){ ctx.beginPath(); ctx.arc(labelX+10, labelY, 4, 0, Math.PI*2); ctx.fillStyle=s.statusColor; ctx.fill(); ctx.strokeStyle="rgba(0,0,0,0.2)"; ctx.lineWidth=1; ctx.stroke(); }
                 }
-
             } else { ctx.strokeStyle="#ff0055"; ctx.lineWidth=2; ctx.stroke(); }
+        }
+
+        // --- Attribute Management (V34 Datalist Integration) ---
+        function addAttr(name) {
+            const key = name || prompt("請輸入屬性名稱 (例如：負責人):");
+            if(!key) return;
+            if(tempAttributes.hasOwnProperty(key)) return;
+            tempAttributes[key] = "";
+            renderAttributes(true);
+        }
+
+        function removeAttr(key) {
+            delete tempAttributes[key];
+            renderAttributes();
+        }
+
+        function updateAttrValue(key, value) {
+            tempAttributes[key] = value;
+        }
+
+        function renderAttributes(focusLast = false) {
+            attrList.innerHTML = '';
+            const keys = Object.keys(tempAttributes);
+            keys.forEach((key, index) => {
+                const div = document.createElement('div');
+                div.className = 'attr-row';
+                
+                // V34: Link to datalists based on key name
+                let listAttr = "";
+                if(key.includes("優先") || key.toLowerCase().includes("priority")) listAttr = 'list="attr-priority"';
+                if(key.includes("類型") || key.toLowerCase().includes("type")) listAttr = 'list="attr-type"';
+
+                div.innerHTML = `
+                    <div class="attr-key">${key}：</div>
+                    <input type="text" class="attr-val" value="${tempAttributes[key]}" ${listAttr} oninput="updateAttrValue('${key}', this.value)">
+                    <span class="attr-del" onclick="removeAttr('${key}')">×</span>
+                `;
+                attrList.appendChild(div);
+                
+                if (focusLast && index === keys.length - 1) {
+                    setTimeout(() => div.querySelector('input').focus(), 50);
+                }
+            });
         }
 
         function openEditor(s, idx) {
@@ -519,6 +651,8 @@
             document.getElementById('titleGroup').classList.remove('hidden'); statusGroup.classList.remove('hidden'); btnGenLegend.classList.add('hidden'); refImgGroup.classList.remove('hidden');
             duplicateBtnGroup.classList.toggle('hidden', idx === -1);
 
+            // V34: Load RTM ID
+            inputRtmId.value = s.rtmId || "";
             inputTitle.value = idx === -1 ? ("項目 " + (shapes.length + 1)) : s.title;
             inputDesc.value = idx === -1 ? "" : s.desc.replace(/<br>/g, '\n');
             inputStatusText.value = s.statusText || ""; selectColor(s.statusColor || "");
@@ -527,15 +661,29 @@
             if(tempRefImgBase64) { refImgPreview.src = tempRefImgBase64; refImgPreviewContainer.classList.remove('hidden'); refImgPlaceholder.classList.add('hidden'); } 
             else { removeRefImg(); }
 
-            renderQuickTags(); modal.classList.add('show'); inputTitle.focus();
+            tempAttributes = s.attributes ? JSON.parse(JSON.stringify(s.attributes)) : {};
+            renderAttributes();
+
+            renderQuickTags(); modal.classList.add('show'); 
+            // V34: Focus RTM ID first if empty, else Title
+            if(!inputRtmId.value) inputRtmId.focus(); else inputTitle.focus();
         }
 
         function duplicateShape() {
             if(!tempShape) return;
             const newShape = JSON.parse(JSON.stringify(tempShape));
-            newShape.title += " (複製)"; newShape.desc=""; newShape.statusText=""; newShape.statusColor="";
+            
+            // "Save as New" Logic
+            newShape.rtmId = inputRtmId.value ? inputRtmId.value + "-COPY" : ""; // V34
+            newShape.title = inputTitle.value + " (複製)";
+            newShape.desc = inputDesc.value.replace(/\n/g, '<br>');
+            newShape.statusText = inputStatusText.value;
+            newShape.statusColor = inputStatusColor.value;
+            newShape.attributes = JSON.parse(JSON.stringify(tempAttributes));
+            newShape.refImage = tempRefImgBase64;
+            
             shapes.push(newShape); focusedShapeIndex = shapes.length - 1;
-            modal.classList.remove('show'); renderSidekick(); redraw();
+            modal.classList.remove('show'); renderSidekick(); redraw(); saveToLocal();
             setTimeout(() => { openEditor(shapes[focusedShapeIndex], focusedShapeIndex); }, 300);
         }
 
@@ -553,43 +701,57 @@
             if (isEditingNote) { globalNote = formattedDesc; } 
             else {
                 if(!tempShape) return;
+                tempShape.rtmId = inputRtmId.value; // V34
                 tempShape.title = inputTitle.value || "未命名";
                 tempShape.desc = formattedDesc;
                 tempShape.statusText = inputStatusText.value;
                 tempShape.statusColor = inputStatusColor.value;
                 tempShape.refImage = tempRefImgBase64; 
+                tempShape.attributes = JSON.parse(JSON.stringify(tempAttributes));
 
                 if(editingShapeIndex === -1) { shapes.push(tempShape); focusedShapeIndex = shapes.length - 1; } 
                 else { shapes[editingShapeIndex] = tempShape; focusedShapeIndex = editingShapeIndex; }
             }
-            modal.classList.remove('show'); renderSidekick(); redraw();
+            modal.classList.remove('show'); renderSidekick(); redraw(); saveToLocal();
         }
 
         function addHighlight() { const t = inputDesc; const s = t.selectionStart; const e = t.selectionEnd; if(s===e)return; t.value = t.value.substring(0,s)+`<span class="highlight-text">${t.value.substring(s,e)}</span>`+t.value.substring(e); }
-        function deleteShape(i) { if(confirm("確定刪除？")) { shapes.splice(i, 1); focusedShapeIndex = -1; renderSidekick(); redraw(); } }
+        function deleteShape(i) { if(confirm("確定刪除？")) { shapes.splice(i, 1); focusedShapeIndex = -1; renderSidekick(); redraw(); saveToLocal(); } }
         function editShape(i) { openEditor(shapes[i], i); }
-        function undo() { shapes.pop(); renderSidekick(); redraw(); }
-        function clearAll() { if(confirm("清空畫布？")) { shapes = []; globalNote=""; renderSidekick(); redraw(); } }
+        function undo() { shapes.pop(); renderSidekick(); redraw(); saveToLocal(); }
+        function clearAll() { if(confirm("清空畫布？")) { shapes = []; globalNote=""; renderSidekick(); redraw(); saveToLocal(); } }
         function getRegionImage(s) {
             const c = document.createElement('canvas'); const ct = c.getContext('2d');
             let x, y, w, h; if (s.type === 'rect') { x = Math.min(s.start.x, s.end.x); y = Math.min(s.start.y, s.end.y); w = Math.abs(s.end.x - s.start.x); h = Math.abs(s.end.y - s.start.y); } else { let mx=Infinity, Mx=-Infinity, my=Infinity, My=-Infinity; s.points.forEach(p=>{mx=Math.min(mx,p.x);Mx=Math.max(Mx,p.x);my=Math.min(my,p.y);My=Math.max(My,p.y);}); x=mx; y=my; w=Mx-mx; h=My-my; }
             const p=10; x=Math.max(0,x-p); y=Math.max(0,y-p); w=w+p*2; h=h+p*2; c.width=w; c.height=h; ct.drawImage(image,x,y,w,h,0,0,w,h); return c.toDataURL('image/jpeg', 0.8);
         }
 
-        // --- V32: 有感優化 Excel 邏輯 ---
         async function downloadRealExcel() {
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
             
-            // V32: 圖片欄位 60, 說明欄位 80
-            ws.columns = [ 
+            // V34: Added RTM ID column
+            const columns = [ 
                 {header:'ID',key:'id',width:6}, 
-                {header:'截圖快照 (Snapshot)',key:'thumb',width:60}, 
-                {header:'參考圖 (Reference)',key:'ref',width:60}, 
-                {header:'標題',key:'title',width:30}, 
-                {header:'狀態',key:'status',width:15}, 
-                {header:'說明',key:'desc',width:80} 
+                {header:'RTM ID',key:'rtmId',width:15}, 
+                {header:'截圖',key:'thumb',width:20}, 
+                {header:'參考圖',key:'ref',width:20}, 
+                {header:'標題',key:'title',width:25}, 
+                {header:'狀態',key:'status',width:12}, 
+                {header:'說明',key:'desc',width:40} 
             ];
+
+            const allAttrKeys = new Set();
+            shapes.forEach(s => {
+                if(s.attributes) { Object.keys(s.attributes).forEach(k => allAttrKeys.add(k)); }
+            });
+            const sortedKeys = Array.from(allAttrKeys).sort();
+
+            sortedKeys.forEach(key => {
+                columns.push({ header: key, key: 'attr_' + key, width: 20 });
+            });
+
+            ws.columns = columns;
             
             ws.getRow(1).font={bold:true,color:{argb:'FFFFFFFF'}}; ws.getRow(1).fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF444444'}}; ws.getRow(1).alignment={vertical:'middle',horizontal:'center'};
 
@@ -600,29 +762,34 @@
                 let cleanDesc = (s.desc || "").replace(/<br>/g, '\n').replace(/<[^>]+>/g, '');
 
                 const row = ws.getRow(rId);
-                row.values = { id:i+1, title:s.title, status:s.statusText, desc: cleanDesc };
+                const rowData = { 
+                    id:i+1, 
+                    rtmId: s.rtmId || "", // V34
+                    title:s.title, 
+                    status:s.statusText, 
+                    desc: cleanDesc 
+                };
                 
-                // V32: Row Height = 200
-                row.height = 200;
-                
-                // V32: 全部靠上對齊
-                row.eachCell((cell) => {
-                    cell.alignment = { vertical: 'top', wrapText: true };
+                sortedKeys.forEach(key => {
+                    rowData['attr_' + key] = (s.attributes && s.attributes[key]) ? s.attributes[key] : "";
                 });
-                // ID 和 狀態 還是水平置中比較好看
+
+                row.values = rowData;
+                row.height = 100;
+                
+                row.eachCell((cell) => { cell.alignment = { vertical: 'top', wrapText: true }; });
                 row.getCell('id').alignment = { vertical: 'top', horizontal: 'center' };
+                row.getCell('rtmId').alignment = { vertical: 'top', horizontal: 'center', bold:true }; // V34 Style
                 row.getCell('status').alignment = { vertical: 'top', horizontal: 'center' };
                 
-                // 狀態欄位樣式
                 const sc = row.getCell('status'); sc.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FF'+stC}}; sc.font={color:{argb:fC},bold:true};
 
-                // V32: 圖片幾近滿版 (padding 0.05)
                 const snapId = wb.addImage({ base64: getRegionImage(s), extension: 'jpeg' });
-                ws.addImage(snapId, { tl:{col:1.05,row:rId-1+0.05}, br:{col:1.95,row:rId-0.05}, editAs:'oneCell' });
+                ws.addImage(snapId, { tl:{col:2.1,row:rId-1+0.1}, br:{col:2.9,row:rId-0.1}, editAs:'oneCell' }); // Offset by 1 col due to RTM ID
 
                 if(s.refImage) {
                     const refId = wb.addImage({ base64: s.refImage, extension: 'jpeg' });
-                    ws.addImage(refId, { tl:{col:2.05,row:rId-1+0.05}, br:{col:2.95,row:rId-0.05}, editAs:'oneCell' });
+                    ws.addImage(refId, { tl:{col:3.1,row:rId-1+0.1}, br:{col:3.9,row:rId-0.1}, editAs:'oneCell' });
                 } else {
                     row.getCell('ref').value = "(無)";
                     row.getCell('ref').alignment={vertical:'middle',horizontal:'center',color:{argb:'FF999999'}};
@@ -631,7 +798,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v32"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v34"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -660,7 +827,9 @@
                         </g>`;
                 
                 let badge = ''; if(s.statusText) { const bg = s.statusColor || '#6c757d'; badge = `<span class="status-badge" style="background-color:${bg}">${s.statusText}</span>`; }
-                
+                // V34: Show RTM ID in HTML list
+                let rtmBadge = s.rtmId ? `<span style="font-size:0.8em; background:#eee; padding:1px 5px; border-radius:3px; margin-right:5px; color:#555;">${s.rtmId}</span>` : '';
+
                 const hasDesc = !!s.desc; const hasRef = !!s.refImage; const isEmpty = !hasDesc && !hasRef; const itemClass = isEmpty ? 'list-item title-only' : 'list-item';
                 let contentHtml = '';
                 if(!isEmpty) {
@@ -671,7 +840,7 @@
                 listHtml += `<div class="${itemClass}" id="list-${id}" onclick="activateRegion('${id}')" onmouseenter="hoverRegion('${id}', true)" onmouseleave="hoverRegion('${id}', false)">
                                 <div class="item-title">
                                     <div style="display:flex; align-items:center; gap:8px;">
-                                        <span class="list-num">${s.id}.</span>${s.title} ${badge}
+                                        <span class="list-num">${s.id}.</span> ${rtmBadge}${s.title} ${badge}
                                     </div>
                                 </div>
                                 ${contentHtml}
@@ -688,7 +857,7 @@
                 .interactive-group rect, .interactive-group polygon { fill: rgba(255,255,255,0.05); stroke: rgba(255,255,255,0.5); stroke-width: 1; transition: 0.2s; }
                 .badge-bg { fill: rgba(0,0,0,0.6); stroke: #fff; stroke-width: 1; transition: 0.2s; } .badge-text { fill: #fff; font-size: 12px; font-weight: bold; font-family: sans-serif; pointer-events: none; }
                 .interactive-group:hover rect, .interactive-group:hover polygon, .interactive-group.hovered rect, .interactive-group.hovered polygon { stroke: #FFD700; stroke-width: 3; fill: rgba(255, 215, 0, 0.1); }
-                .interactive-group:hover .badge-bg, .interactive-group.hovered .badge-bg { fill: #FFD700; stroke: #000; } 
+                .interactive-group:hover .badge-bg { fill: #FFD700; stroke: #000; } 
                 .interactive-group:hover .badge-text, .interactive-group.hovered .badge-text { fill: #000; }
                 .interactive-group.active rect, .interactive-group.active polygon { stroke: #28a745; stroke-width: 4; fill: rgba(40,167,69,0.2); animation: pulse 2s infinite; }
                 .interactive-group.active .badge-bg { fill: #28a745; stroke: #fff; } 
@@ -736,6 +905,7 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
+                        // 確保 SVG 元素移到最上層
                         if(s) s.parentNode.appendChild(s);
                     }else{
                         s?.classList.remove('hovered');
@@ -747,7 +917,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v32"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v34"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
