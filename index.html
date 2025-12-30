@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map互動需求製作 (V41 最終版)</title>
+    <title>Image Map互動需求製作</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 (RWD) --- */
@@ -129,7 +129,7 @@
 <body>
 
     <h1>Image Map互動需求製作</h1>
-    <div class="subtitle">V41 最終版：支援觸控繪圖、防崩潰保護、Excel 優化</div>
+    <div class="subtitle">貼上支援 Ctrl+V 貼上參考圖、觸控支援、防崩潰</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -243,7 +243,7 @@
             <div id="refImgGroup" style="margin-top:10px;">
                 <label>參考圖片</label>
                 <div class="ref-img-zone" onclick="document.getElementById('inputRefImg').click()">
-                    <span id="refImgPlaceholder" style="color:#888; font-size:0.9em;">➕ 上傳參考圖 (自動壓縮)</span>
+                    <span id="refImgPlaceholder" style="color:#888; font-size:0.9em;">➕ 上傳參考圖 (點擊或 Ctrl+V 貼上)</span>
                     <input type="file" id="inputRefImg" accept="image/*" style="display:none" onchange="handleRefImg(this)">
                     <div id="refImgPreviewContainer" class="hidden">
                         <img id="refImgPreview" class="ref-img-preview" src="">
@@ -345,7 +345,7 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V41 互動需求製作)", 280, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V42 貼上增強版)", 280, 250);
         
         loadPresets();
         checkAutoSave();
@@ -404,7 +404,6 @@
                         const data = JSON.parse(script.textContent);
                         shapes = data.shapes; globalNote = data.globalNote || "";
                         loadImage(data.imgData);
-                        // FIX: 優先使用資料內的檔名，沒有才用匯入的檔名
                         fileNameInput.value = data.fileName || file.name.split('.')[0];
                         document.getElementById('searchInput').value = ''; 
                         renderSidekick();
@@ -441,10 +440,8 @@
             try {
                 localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
             } catch (e) {
-                // 捕捉儲存空間不足的錯誤
                 if (e.name === 'QuotaExceededError' || e.code === 22) {
                     console.warn("LocalStorage quota exceeded. Auto-save suspended.");
-                    // 可選擇性提示使用者，但避免太頻繁打擾
                 }
             }
         }
@@ -535,25 +532,59 @@
             });
         }
 
+        // --- 核心改進 3: 圖片處理函式 (給 上傳 和 貼上 共用) ---
+        function processRefFile(file) {
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const img = new Image();
+                img.onload = function() {
+                    // 自動壓縮邏輯
+                    const maxW = 800;
+                    const scale = img.width > maxW ? maxW / img.width : 1;
+                    const c = document.createElement('canvas'); 
+                    c.width = img.width * scale; 
+                    c.height = img.height * scale;
+                    const ctx = c.getContext('2d'); 
+                    ctx.drawImage(img, 0, 0, c.width, c.height);
+                    
+                    // 更新介面
+                    tempRefImgBase64 = c.toDataURL('image/jpeg', 0.8);
+                    refImgPreview.src = tempRefImgBase64; 
+                    refImgPreviewContainer.classList.remove('hidden'); 
+                    refImgPlaceholder.classList.add('hidden');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        // 修改後的上傳觸發函式
         function handleRefImg(input) {
             if (input.files && input.files[0]) {
-                const file = input.files[0];
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    const img = new Image();
-                    img.onload = function() {
-                        const maxW = 800;
-                        const scale = img.width > maxW ? maxW / img.width : 1;
-                        const c = document.createElement('canvas'); c.width = img.width * scale; c.height = img.height * scale;
-                        const ctx = c.getContext('2d'); ctx.drawImage(img, 0, 0, c.width, c.height);
-                        tempRefImgBase64 = c.toDataURL('image/jpeg', 0.8);
-                        refImgPreview.src = tempRefImgBase64; refImgPreviewContainer.classList.remove('hidden'); refImgPlaceholder.classList.add('hidden');
-                    };
-                    img.src = e.target.result;
-                };
-                reader.readAsDataURL(file);
+                processRefFile(input.files[0]);
             }
+            input.value = ''; 
         }
+
+        // --- 核心改進 4: 新增全域貼上監聽器 (Ctrl+V) ---
+        document.addEventListener('paste', (e) => {
+            // 只有在編輯視窗開啟時才生效
+            if (!modal.classList.contains('show')) return;
+
+            // 取得剪貼簿資料
+            const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+            
+            for (let index in items) {
+                const item = items[index];
+                if (item.kind === 'file' && item.type.includes('image/')) {
+                    const blob = item.getAsFile();
+                    processRefFile(blob); // 呼叫共用函式
+                    e.preventDefault();
+                    return;
+                }
+            }
+        });
 
         function removeRefImg() { tempRefImgBase64 = ""; document.getElementById('inputRefImg').value = ""; refImgPreview.src = ""; refImgPreviewContainer.classList.add('hidden'); refImgPlaceholder.classList.remove('hidden'); }
 
@@ -649,7 +680,7 @@
         function addAttr(name) {
             let key = name || prompt("請輸入屬性名稱 (例如：負責人):");
             if(!key) return;
-            key = key.trim(); // FIX: 去除前後空白，避免 key 不一致
+            key = key.trim(); 
             if(tempAttributes.hasOwnProperty(key)) return;
             tempAttributes[key] = "";
             renderAttributes(true);
@@ -765,7 +796,6 @@
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
             
-            // FIX: 加大截圖與參考圖的欄寬 (原本20 -> 30)，避免變形太嚴重
             const columns = [ 
                 {header:'ID',key:'id',width:6}, 
                 {header:'RTM ID',key:'rtmId',width:15}, 
@@ -830,7 +860,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v41"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v42"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -939,7 +969,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v41"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v42"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
