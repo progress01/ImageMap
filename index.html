@@ -38,14 +38,12 @@
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 180px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
-        /* --- 4. 懸浮清單 (Sidekick) - V36 優化搜尋介面 --- */
+        /* --- 4. 懸浮清單 (Sidekick) - V37 修復 --- */
         .sidekick-panel { position: fixed; right: 20px; top: 100px; width: 260px; background: white; border-radius: 10px; box-shadow: 0 5px 20px rgba(0,0,0,0.15); border: 1px solid #eee; z-index: 100; display: flex; flex-direction: column; max-height: 70vh; transition: 0.3s; }
-        .sidekick-panel.minimized { width: 40px; height: 40px; overflow: hidden; border-radius: 50%; top: auto; bottom: 20px; }
+        
         .sidekick-header { padding: 12px 15px; background: #f8f9fa; border-bottom: 1px solid #eee; border-radius: 10px 10px 0 0; font-weight: bold; color: #555; font-size: 0.9em; display: flex; flex-direction: column; gap: 8px; flex-shrink: 0; }
         .sk-head-row { display: flex; justify-content: space-between; align-items: center; width: 100%; cursor: move; }
         .sidekick-toggle { cursor: pointer; padding: 0 5px; color: #999; }
-        
-        /* V36 Search Box Style */
         .sk-search-wrapper { position: relative; display: flex; align-items: center; }
         .sk-search { width: 100%; padding: 6px 25px 6px 8px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; font-size: 0.9em; }
         .sk-search:focus { border-color: #007bff; outline: none; }
@@ -61,6 +59,39 @@
         .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
         .rtm-tag { font-size: 0.75em; background: #eee; padding: 1px 4px; border-radius: 3px; color: #666; margin-left: 5px; }
 
+        /* V37 關鍵修復：最小化樣式重構 */
+        .sidekick-panel.minimized { 
+            width: 50px; height: 50px; 
+            border-radius: 50%; 
+            top: auto; bottom: 20px; right: 20px; 
+            overflow: hidden; 
+            padding: 0;
+            display: flex; align-items: center; justify-content: center;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            background: white;
+        }
+        /* 最小化時隱藏這些元素 */
+        .sidekick-panel.minimized .sidekick-content,
+        .sidekick-panel.minimized .sk-search-wrapper,
+        .sidekick-panel.minimized #skTitle,
+        .sidekick-panel.minimized .sk-head-row {
+            display: none !important;
+        }
+        /* 最小化時只顯示這個按鈕 */
+        .sidekick-panel.minimized .sidekick-header {
+            background: transparent; border: none; padding: 0; margin: 0;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+        }
+        /* 讓加號按鈕佔滿整個圓圈 */
+        .sidekick-panel.minimized .sidekick-toggle {
+            font-size: 24px; color: #28a745;
+            width: 100%; height: 100%;
+            display: flex; align-items: center; justify-content: center;
+            padding: 0;
+        }
+
         /* --- 5. Modal 樣式 --- */
         .editor-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; justify-content: center; align-items: center; z-index: 999; visibility: hidden; opacity: 0; transition: 0.3s; }
         .editor-modal.show { visibility: visible; opacity: 1; }
@@ -71,7 +102,6 @@
         label { font-weight: bold; font-size: 0.9em; color: #555; display: block; margin-bottom: 5px; }
         input[type="text"] { padding: 10px; border: 1px solid #ddd; border-radius: 6px; width: 100%; box-sizing: border-box; font-size: 1em; }
         
-        /* Tag Manager Styles */
         .tag-modal-content { display: flex; flex-direction: column; gap: 10px; max-height: 300px; overflow-y: auto; }
         .tag-row { display: flex; gap: 8px; align-items: center; padding: 8px; border-bottom: 1px solid #eee; }
         .tag-row:last-child { border-bottom: none; }
@@ -117,7 +147,7 @@
 <body>
 
     <h1>Image Map</h1>
-    <div class="subtitle">列表防呆修復/搜尋優化</div>
+    <div class="subtitle">RTM最小化修復</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -159,7 +189,7 @@
         <div class="sidekick-header">
             <div class="sk-head-row">
                 <span id="skTitle">項目列表 (0)</span>
-                <span class="sidekick-toggle" onclick="toggleSidekick()" title="最小化">➖</span>
+                <span class="sidekick-toggle" onclick="toggleSidekick()" title="切換顯示">➖</span>
             </div>
             <div class="sk-search-wrapper">
                 <input type="text" id="searchInput" class="sk-search" placeholder="🔍 搜尋標題/ID..." oninput="filterShapes(this.value)">
@@ -324,12 +354,12 @@
         let showFullLabels = false; 
         let lastMousePos = { x: 0, y: 0 };
         let tempAttributes = {}; 
-        const AUTOSAVE_KEY = 'imgMap_v36_autosave'; 
+        const AUTOSAVE_KEY = 'imgMap_v37_autosave'; 
 
         // --- Init ---
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V36 修復版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V37 UI修復版)", 300, 250);
         loadPresets();
         checkAutoSave();
 
@@ -351,7 +381,13 @@
         imgInput.addEventListener('change', (e) => {
             const file = e.target.files[0]; if(!file) return;
             const reader = new FileReader();
-            reader.onload = (event) => { loadImage(event.target.result); shapes = []; globalNote = ""; fileNameInput.value = file.name.split('.')[0]; renderSidekick(); saveToLocal(); };
+            reader.onload = (event) => { 
+                loadImage(event.target.result); 
+                shapes = []; globalNote = ""; 
+                fileNameInput.value = file.name.split('.')[0]; 
+                document.getElementById('searchInput').value = ''; // V37: Clear search
+                renderSidekick(); saveToLocal(); 
+            };
             reader.readAsDataURL(file);
         });
 
@@ -367,6 +403,7 @@
                         shapes = data.shapes; globalNote = data.globalNote || "";
                         loadImage(data.imgData);
                         fileNameInput.value = file.name.split('.')[0];
+                        document.getElementById('searchInput').value = ''; // V37: Clear search on import
                         renderSidekick();
                         saveToLocal();
                         alert("專案已還原！");
@@ -517,9 +554,19 @@
             alert("已產生圖例");
         }
 
-        function toggleSidekick() { sidekickPanel.classList.toggle('minimized'); const btn = sidekickPanel.querySelector('.sidekick-toggle'); if(sidekickPanel.classList.contains('minimized')) { btn.innerText = "➕"; skTitle.innerText = ""; } else { btn.innerText = "➖"; renderSidekick(); } }
+        function toggleSidekick() { 
+            sidekickPanel.classList.toggle('minimized'); 
+            const btn = sidekickPanel.querySelector('.sidekick-toggle');
+            
+            if(sidekickPanel.classList.contains('minimized')) {
+                btn.innerText = "➕";
+            } else {
+                btn.innerText = "➖";
+                renderSidekick();
+            }
+        }
         
-        // V36 FIX: Safe Render Sidekick with Empty State and Clear Btn
+        // V37 FIX: Safe Render Sidekick with Empty State and Clear Btn
         function renderSidekick() {
             sidekickList.innerHTML = ''; skTitle.innerText = `項目列表 (${shapes.length})`;
             
@@ -527,7 +574,6 @@
             const clearBtn = document.getElementById('searchClearBtn');
             const filter = searchEl ? searchEl.value.toLowerCase() : '';
 
-            // Toggle clear button
             if(clearBtn) clearBtn.style.display = filter ? 'block' : 'none';
 
             if(shapes.length === 0) { 
@@ -563,7 +609,6 @@
                 sidekickList.appendChild(item);
             });
 
-            // V36: Show no results message
             if(visibleCount === 0 && filter) {
                 sidekickList.innerHTML = '<div style="text-align:center; color:#999; font-size:0.85em; margin-top:20px;">🔍 查無符合項目<br><a href="#" onclick="clearSearch(); return false;" style="color:#007bff; text-decoration:none;">清除搜尋</a></div>';
             }
@@ -805,7 +850,7 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v36"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v37"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
@@ -909,7 +954,7 @@
                     if(en){
                         s?.classList.add('hovered');
                         l?.classList.add('hovered');
-                        // 移除 appendChild 以避免閃爍，因為 V36 的 CSS 已經處理好了
+                        // 移除 appendChild 以避免閃爍，因為 V37 的 CSS 已經處理好了
                     }else{
                         s?.classList.remove('hovered');
                         l?.classList.remove('hovered');
@@ -920,7 +965,7 @@
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v36"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v37"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
