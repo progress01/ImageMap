@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Image Map 生成器</title>
+    <title>Image Map互動需求製作 (V41 最終版)</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.3.0/exceljs.min.js"></script>
     <style>
         /* --- 1. 核心佈局 (RWD) --- */
@@ -52,7 +52,7 @@
             width: auto; max-width: 98vw; min-height: 300px; 
             margin-bottom: 50px; overflow: hidden; 
         }
-        canvas { display: block; cursor: crosshair; max-width: 100%; height: auto; }
+        canvas { display: block; cursor: crosshair; max-width: 100%; height: auto; touch-action: none; /* 防止觸控滾動 */ }
         input[type="text"].filename-input { padding: 8px 15px; border: 1px solid #ddd; border-radius: 20px; outline: none; width: 150px; text-align: center; }
         input[type="text"].filename-input:focus { border-color: #28a745; }
 
@@ -128,8 +128,8 @@
 </head>
 <body>
 
-    <h1>Image Map 生成器 V40</h1>
-    <div class="subtitle">修復專案筆記、匯入錯誤與 RWD</div>
+    <h1>Image Map互動需求製作</h1>
+    <div class="subtitle">V41 最終版：支援觸控繪圖、防崩潰保護、Excel 優化</div>
 
     <div class="main-controls">
         <div class="file-group">
@@ -190,7 +190,7 @@
         <div class="editor-card">
             <h3 id="modalTitle">📝 編輯區域資訊</h3>
             
-            <div style="display:flex; gap:10px;">
+            <div id="titleGroup" style="display:flex; gap:10px;">
                 <div style="flex:2;">
                     <label>RTM ID (唯一識別碼)</label>
                     <input type="text" id="inputRtmId" placeholder="例如：REQ-001" style="border-color:#17a2b8;">
@@ -324,7 +324,6 @@
         const attrList = document.getElementById('attrList'); 
         const btnSidekickToggle = document.getElementById('btnSidekickToggle'); 
         
-        /* V40 Fix: 宣告遺失的變數 */
         const statusGroup = document.getElementById('statusGroup');
         const btnGenLegend = document.getElementById('btnGenLegend');
         const refImgGroup = document.getElementById('refImgGroup');
@@ -346,9 +345,29 @@
 
         canvas.width = 800; canvas.height = 500;
         ctx.fillStyle = "#e0e0e0"; ctx.fillRect(0,0,800,500);
-        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V40 修復版)", 300, 250);
+        ctx.fillStyle = "#666"; ctx.font = "20px sans-serif"; ctx.fillText("請上傳圖片 (V41 互動需求製作)", 280, 250);
+        
         loadPresets();
         checkAutoSave();
+
+        // --- 核心改進 1: 觸控支援映射 (Touch Support) ---
+        function touchHandler(event) {
+            const touch = event.changedTouches[0];
+            const simulatedEvent = new MouseEvent({
+                touchstart: "mousedown",
+                touchmove: "mousemove",
+                touchend: "mouseup"
+            }[event.type], {
+                bubbles: true, cancelable: true, view: window, detail: 1,
+                screenX: touch.screenX, screenY: touch.screenY,
+                clientX: touch.clientX, clientY: touch.clientY,
+            });
+            touch.target.dispatchEvent(simulatedEvent);
+            if(event.type === 'touchmove') event.preventDefault(); 
+        }
+        canvas.addEventListener("touchstart", touchHandler, true);
+        canvas.addEventListener("touchmove", touchHandler, {passive: false});
+        canvas.addEventListener("touchend", touchHandler, true);
 
         document.addEventListener('keydown', (e) => {
             if (modal.classList.contains('show') || tagManagerModal.classList.contains('show')) return;
@@ -385,17 +404,18 @@
                         const data = JSON.parse(script.textContent);
                         shapes = data.shapes; globalNote = data.globalNote || "";
                         loadImage(data.imgData);
-                        fileNameInput.value = file.name.split('.')[0];
+                        // FIX: 優先使用資料內的檔名，沒有才用匯入的檔名
+                        fileNameInput.value = data.fileName || file.name.split('.')[0];
                         document.getElementById('searchInput').value = ''; 
                         renderSidekick();
                         saveToLocal();
                         alert("專案已還原！");
                     } else {
-                        alert("匯入失敗：找不到還原數據 (restore-data)，請確認這是由本工具產生的 HTML 檔案。");
+                        alert("匯入失敗：找不到還原數據 (restore-data)。");
                     }
                 } catch(e) { 
                     console.error(e);
-                    alert("匯入失敗：檔案格式錯誤或已損毀。"); 
+                    alert("匯入失敗：檔案格式錯誤。"); 
                 }
             };
             reader.readAsText(file);
@@ -408,6 +428,7 @@
             image.src = src;
         }
 
+        // --- 核心改進 2: 安全的儲存機制 (Quota Protection) ---
         function saveToLocal() {
             if(!originalImageDataUrl) return;
             const data = {
@@ -417,13 +438,21 @@
                 fileName: fileNameInput.value,
                 timestamp: new Date().getTime()
             };
-            localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+            try {
+                localStorage.setItem(AUTOSAVE_KEY, JSON.stringify(data));
+            } catch (e) {
+                // 捕捉儲存空間不足的錯誤
+                if (e.name === 'QuotaExceededError' || e.code === 22) {
+                    console.warn("LocalStorage quota exceeded. Auto-save suspended.");
+                    // 可選擇性提示使用者，但避免太頻繁打擾
+                }
+            }
         }
 
         function checkAutoSave() {
-            const dataStr = localStorage.getItem(AUTOSAVE_KEY);
-            if(dataStr) {
-                try {
+            try {
+                const dataStr = localStorage.getItem(AUTOSAVE_KEY);
+                if(dataStr) {
                     const data = JSON.parse(dataStr);
                     if(data.imgData && (data.shapes.length > 0 || data.globalNote)) {
                         if(confirm(`發現未儲存的草稿 (${new Date(data.timestamp).toLocaleString()})，是否還原？`)) {
@@ -434,8 +463,8 @@
                             renderSidekick();
                         }
                     }
-                } catch(e) { console.error("Auto-save load failed", e); }
-            }
+                }
+            } catch(e) { console.error("Auto-save load failed", e); }
         }
 
         function clearAutoSave() {
@@ -618,8 +647,9 @@
         }
 
         function addAttr(name) {
-            const key = name || prompt("請輸入屬性名稱 (例如：負責人):");
+            let key = name || prompt("請輸入屬性名稱 (例如：負責人):");
             if(!key) return;
+            key = key.trim(); // FIX: 去除前後空白，避免 key 不一致
             if(tempAttributes.hasOwnProperty(key)) return;
             tempAttributes[key] = "";
             renderAttributes(true);
@@ -735,11 +765,12 @@
             if(shapes.length === 0) { alert("無資料"); return; }
             const wb = new ExcelJS.Workbook(); const ws = wb.addWorksheet('專案報表');
             
+            // FIX: 加大截圖與參考圖的欄寬 (原本20 -> 30)，避免變形太嚴重
             const columns = [ 
                 {header:'ID',key:'id',width:6}, 
                 {header:'RTM ID',key:'rtmId',width:15}, 
-                {header:'截圖',key:'thumb',width:20}, 
-                {header:'參考圖',key:'ref',width:20}, 
+                {header:'截圖',key:'thumb',width:30}, 
+                {header:'參考圖',key:'ref',width:30}, 
                 {header:'標題',key:'title',width:25}, 
                 {header:'狀態',key:'status',width:12}, 
                 {header:'說明',key:'desc',width:40} 
@@ -799,12 +830,12 @@
             const buf = await wb.xlsx.writeBuffer();
             const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v40"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v41"; link.download = n + ".xlsx"; document.body.appendChild(link); link.click(); document.body.removeChild(link);
         }
 
         function downloadPresentation() {
             if(!originalImageDataUrl || shapes.length === 0) { alert("請先繪製"); return; }
-            const rd = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote };
+            const rd = { imgData: originalImageDataUrl, shapes: shapes, globalNote: globalNote, fileName: fileNameInput.value };
             const safeNote = globalNote ? globalNote.replace(/\n/g, '<br>') : "無專案筆記";
 
             let svgC = ''; let listHtml = '';
@@ -845,7 +876,7 @@
                             </div>`;
             });
 
-            const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>專案導覽</title><style>
+            const html = `<!DOCTYPE html><html lang="zh-TW"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><title>互動需求導覽</title><style>
                 body { margin:0; background: #1a1a1a; font-family: "Microsoft JhengHei", sans-serif; height: 100vh; display: flex; overflow: hidden; }
                 .layout-container { display: flex; width: 100%; height: 100%; }
                 .map-section { flex: 3; position: relative; background: #222; overflow: auto; display: flex; justify-content: center; align-items: flex-start; border-right: 1px solid #333; }
@@ -883,7 +914,7 @@
                 .zoom-btn:hover { background: #28a745; border-color: #28a745; }
                 .note-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 2000; justify-content: center; align-items: center; backdrop-filter: blur(5px); } .note-card { background: #2b2b2b; color: #eee; width: 80%; max-width: 700px; max-height: 80vh; border-radius: 12px; display: flex; flex-direction: column; border: 1px solid #555; } .note-body { padding: 30px; overflow-y: auto; line-height: 1.8; font-size: 1.1em; white-space: pre-wrap; }
             </style></head><body>
-            <div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${rd.imgData}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgC}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 專案導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listHtml}</div></div></div>
+            <div class="layout-container"><div class="map-section" id="mapSection"><div class="stage" id="stage" style="width: 95%;"><img src="${rd.imgData}"><svg class="overlay" viewBox="0 0 ${canvas.width} ${canvas.height}">${svgC}</svg></div><div class="zoom-controls"><button class="zoom-btn" onclick="setZoom(100)">100%</button><button class="zoom-btn" onclick="setZoom('fit')">Fit</button><button class="zoom-btn" onclick="zoomIn()">+</button><button class="zoom-btn" onclick="zoomOut()">-</button></div></div><div class="sidebar"><div class="sidebar-header"><div style="font-size:1.2em; font-weight:bold; color:#28a745;">📋 互動需求導覽</div><button style="background:#6610f2; color:white; border:none; padding:5px 15px; border-radius:15px; cursor:pointer;" onclick="toggleNote()">專案筆記</button></div><div class="sidebar-content" id="sidebarList">${listHtml}</div></div></div>
             <div class="note-modal" id="noteModal" onclick="toggleNote()"><div class="note-card" onclick="event.stopPropagation()"><div style="padding:15px 20px; border-bottom:1px solid #444; font-weight:bold; background:#333; border-radius:12px 12px 0 0;">📌 專案筆記</div><div class="note-body">${safeNote}</div></div></div>
             <script id="restore-data" type="application/json">${JSON.stringify(rd)}<\/script>
             <script>
@@ -900,21 +931,15 @@
                     if(activeId===id)return; 
                     const s=document.getElementById('svg-'+id); 
                     const l=document.getElementById('list-'+id); 
-                    if(en){
-                        s?.classList.add('hovered');
-                        l?.classList.add('hovered');
-                        // 移除 appendChild 以避免閃爍，因為 V40 的 CSS 已經處理好了
-                    }else{
-                        s?.classList.remove('hovered');
-                        l?.classList.remove('hovered');
-                    } 
+                    if(en){ s?.classList.add('hovered'); l?.classList.add('hovered'); }
+                    else{ s?.classList.remove('hovered'); l?.classList.remove('hovered'); } 
                 }
                 function toggleNote(){ const m=document.getElementById('noteModal'); m.style.display=(m.style.display==='flex')?'none':'flex'; }
             <\/script></body></html>`;
 
             const blob = new Blob([html], { type: "text/html" });
             const link = document.createElement("a"); link.href = URL.createObjectURL(blob);
-            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v40"; link.download = n + ".html"; link.click();
+            let n = fileNameInput.value.trim(); if(!n) n = "project_report_v41"; link.download = n + ".html"; link.click();
         }
     </script>
 </body>
